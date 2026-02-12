@@ -1,0 +1,71 @@
+[build-system]
+requires = ["setuptools>=65", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "morocco-legal-ai"
+version = "0.1.0"
+description = "RAG system for Moroccan legal documents (BO intake)"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{name = "moad ennagi", email = "moad.ennagi@gmail.com"}]
+license = {text = "MIT"}
+keywords = ["rag", "legal", "morocco", "nlp"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+dependencies = [
+    "pydantic>=2.0",           # Data validation
+    "psycopg2-binary>=2.9",    # PostgreSQL driver
+    "chromadb>=0.4",           # Vector database
+    "aiohttp",
+    "python-dotenv>=1.0",      # Env vars from .env
+    "beautifulsoup4",
+    "sqlalchemy"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "black>=23.0",
+    "ruff>=0.1",
+    "mypy>=1.5",
+    "pre-commit>=3.4",
+]
+llm = [
+    "openai>=1.0",
+]
+
+[project.scripts]
+mla = "morocco_legal_ai.cli:main"
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = ["E", "F", "W"]  # Error, Pyflakes, Warnings
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = "test_*.py"
+addopts = "--cov=src/morocco_legal_ai --cov-report=term-short"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
