@@ -1,7 +1,18 @@
 from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from morocco_legal_ai.models.enums import TaskStatus, TaskType
+from enum import Enum
+
+
+class TaskStatus(Enum):
+    succeeded = "succeeded"
+    failed = "failed"
+    in_progress = "in_progress"
+
+
+class TaskType(Enum):
+    crawling = "crawling"
+    download = "download"
 
 
 class Base(DeclarativeBase):
@@ -29,10 +40,11 @@ class Document(Base):
     content: Mapped[str]
 
     created_at: Mapped[int]
-    updated_at: Mapped[int] | None = mapped_column(nullable=True)
+    updated_at: Mapped[int | None] = mapped_column(nullable=True)
 
     source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"))
 
+    source: Mapped["Source"] = relationship(back_populates="documents")
     target: Mapped["Target"] = relationship(back_populates="document", single_parent=True)
 
     __table_args__ = (UniqueConstraint("number", "source_id"),)
@@ -46,18 +58,16 @@ class Target(Base):
     number: Mapped[str]
 
     created_at: Mapped[int]
-    updated_at: Mapped[int] | None = mapped_column(nullable=True)
-    claimed_at: Mapped[int] | None = mapped_column(nullable=True)
+    updated_at: Mapped[int | None] = mapped_column(nullable=True)
+    claimed_at: Mapped[int | None] = mapped_column(nullable=True)
 
     task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"))
-    document_id: Mapped[int] | None = mapped_column(ForeignKey("documents.id"), nullable=True)
+    document_id: Mapped[int | None] = mapped_column(ForeignKey("documents.id"), nullable=True)
     source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"))
 
     document: Mapped["Document"] = relationship(back_populates="target", single_parent=True)
-    task: Mapped["Task"] = relationship(back_populates="target")
-    source: Mapped["Source"] = relationship(back_populates="target")
-
-    __table_args__ = (UniqueConstraint("number", "source_id"),)
+    task: Mapped["Task"] = relationship(back_populates="targets")
+    source: Mapped["Source"] = relationship(back_populates="targets")
 
 
 class Task(Base):
@@ -66,13 +76,15 @@ class Task(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     status: Mapped[TaskStatus]
     created_at: Mapped[int]
-    updated_at: Mapped[int]
+    updated_at: Mapped[int | None] = mapped_column(nullable=True)
 
     type: Mapped[TaskType]
 
     source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"))
+    source: Mapped["Source"] = relationship(back_populates="tasks")
 
-    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"))
-    task: Mapped["Task"] = relationship(back_populates="task")
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id"), nullable=True)
+    parent: Mapped["Task"] = relationship(back_populates="children", remote_side=[id])
+    children: Mapped[list["Task"]] = relationship(back_populates="parent")
 
     targets: Mapped[list["Target"]] = relationship(back_populates="task")

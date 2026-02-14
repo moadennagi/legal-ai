@@ -1,16 +1,12 @@
 from bs4 import BeautifulSoup
 import aiohttp
+from urllib.parse import urljoin
 from typing import Any
-from morocco_legal_ai.models import Target
-from morocco_legal_ai.interfaces.crawler import CrawlerInterface
+from legal_ai.models.schemas import TargetPayload, SourcePayload
+from legal_ai.constants import API_URL, BASE_URL
 
-URL = "https://www.sgg.gov.ma/BulletinOfficiel.aspx"
-API_URL = "https://www.sgg.gov.ma/DesktopModules/MVC/TableListBO/BO/AjaxMethod"
-BASE_URL = "https://www.sgg.gov.ma/"
-
-
-class Crawler(CrawlerInterface):
-    async def _get_page_content(self, url: str) -> str | None:
+class Crawler:
+    async def _get_page_content(self, url: str) -> bytes | None:
         """Get page content and return a response."""
         async with aiohttp.ClientSession() as session:
             response = await session.get(url)
@@ -18,7 +14,7 @@ class Crawler(CrawlerInterface):
             html = await response.content.read()
             return html
 
-    def _extract_verification_token(self, page_content: str):
+    def _extract_verification_token(self, page_content: bytes) -> str:
         """
         Construct a beautiful soup instance, parse and return
         the verification token.
@@ -27,15 +23,17 @@ class Crawler(CrawlerInterface):
         token = soup.select_one("input[name=__RequestVerificationToken]")
         if not token:
             raise ValueError()
-        return token.attrs["value"]
+        return str(token.attrs["value"])
 
-    async def crawl_and_return_targets(self, url):
+    async def crawl_and_return_targets(self, source: SourcePayload) -> list[TargetPayload]:
         """
         Get page content, parse target info and return a list of Target
         instances.
         """
-        targets: list[Target] = []
-        page_content = await self._get_page_content(url)
+        targets: list[TargetPayload] = []
+        page_content = await self._get_page_content(source.url)
+        if not page_content:
+            raise ValueError()
         token = self._extract_verification_token(page_content)
         headers = {
             "X-Requested-With": "XMLHttpRequest",
@@ -43,7 +41,7 @@ class Crawler(CrawlerInterface):
             "TabId": "775",
             "RequestVerificationToken": token,
         }
-        json: list[dict[str, Any]] = {}
+        json: list[dict[str, Any]] = []
         async with aiohttp.ClientSession() as session:
             response = await session.get(API_URL, headers=headers)
             response.raise_for_status()
@@ -51,21 +49,7 @@ class Crawler(CrawlerInterface):
 
         # parse the json
         for obj in json:
-            target = Target(url=obj["BoUrl"], number=obj["BoNum"])
+            url = urljoin(BASE_URL, obj["BoUrl"])
+            target = TargetPayload(url=url, number=obj["BoNum"])
             targets.append(target)
         return targets
-
-
-if __name__ == "__main__":
-    import asyncio
-    import json
-
-    crawler = Crawler()
-
-    async def main():
-        targets = await crawler.crawl_and_return_targets(URL)
-        with open("targets.json", "w") as fp:
-            data = [{"bo_num": target.number, "bo_url": target.url} for target in targets]
-            json.dump(data, fp)
-
-    asyncio.run(main())
