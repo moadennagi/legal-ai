@@ -3,13 +3,18 @@ import aiohttp
 from urllib.parse import urljoin
 from typing import Any
 from legal_ai.models.schemas import TargetPayload, SourcePayload
-from legal_ai.constants import API_URL, BASE_URL
+from legal_ai.interfaces.crawler import CrawlerInterface
 
-class Crawler:
-    async def _get_page_content(self, url: str) -> bytes | None:
+class SGGCrawler(CrawlerInterface):
+
+    url = "https://www.sgg.gov.ma/BulletinOfficiel.asp"
+    base_url = "https://www.sgg.gov.ma/"
+    api_url = "https://www.sgg.gov.ma/DesktopModules/MVC/TableListBO/BO/AjaxMethod"
+
+    async def _get_page_content(self) -> bytes | None:
         """Get page content and return a response."""
         async with aiohttp.ClientSession() as session:
-            response = await session.get(url)
+            response = await session.get(self.url)
             response.raise_for_status()
             html = await response.content.read()
             return html
@@ -31,7 +36,7 @@ class Crawler:
         instances.
         """
         targets: list[TargetPayload] = []
-        page_content = await self._get_page_content(source.url)
+        page_content = await self._get_page_content()
         if not page_content:
             raise ValueError()
         token = self._extract_verification_token(page_content)
@@ -43,13 +48,13 @@ class Crawler:
         }
         json: list[dict[str, Any]] = []
         async with aiohttp.ClientSession() as session:
-            response = await session.get(API_URL, headers=headers)
+            response = await session.get(self.api_url, headers=headers)
             response.raise_for_status()
             json = await response.json()
 
         # parse the json
         for obj in json:
-            url = urljoin(BASE_URL, obj["BoUrl"])
+            url = urljoin(self.base_url, obj["BoUrl"])
             target = TargetPayload(url=url, number=obj["BoNum"])
             targets.append(target)
         return targets
