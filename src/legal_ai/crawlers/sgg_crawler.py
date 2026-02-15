@@ -5,9 +5,10 @@ from typing import Any
 from legal_ai.models.schemas import TargetPayload, SourcePayload
 from legal_ai.interfaces.crawler import CrawlerInterface
 
-class SGGCrawler(CrawlerInterface):
 
-    url = "https://www.sgg.gov.ma/BulletinOfficiel.asp"
+class SGGCrawler(CrawlerInterface):
+    name = "sgg"
+    url = "https://www.sgg.gov.ma/BulletinOfficiel.aspx"
     base_url = "https://www.sgg.gov.ma/"
     api_url = "https://www.sgg.gov.ma/DesktopModules/MVC/TableListBO/BO/AjaxMethod"
 
@@ -30,7 +31,7 @@ class SGGCrawler(CrawlerInterface):
             raise ValueError()
         return str(token.attrs["value"])
 
-    async def crawl_and_return_targets(self, source: SourcePayload) -> list[TargetPayload]:
+    async def crawl_and_return_targets(self) -> list[TargetPayload]:
         """
         Get page content, parse target info and return a list of Target
         instances.

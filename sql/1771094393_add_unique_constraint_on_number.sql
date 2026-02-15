@@ -1,0 +1,1 @@
+ALTER TABLE "targets" ADD CONSTRAINT uq_number_per_source UNIQUE (number, source_id);

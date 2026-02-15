@@ -69,6 +69,7 @@ class Target(Base):
     task: Mapped["Task"] = relationship(back_populates="targets")
     source: Mapped["Source"] = relationship(back_populates="targets")
 
+    __table_args__  = (UniqueConstraint("source_id", "number"),)
 
 class Task(Base):
     __tablename__ = "tasks"
@@ -88,3 +89,5 @@ class Task(Base):
     children: Mapped[list["Task"]] = relationship(back_populates="parent")
 
     targets: Mapped[list["Target"]] = relationship(back_populates="task")
+
+    __table_args__  = (UniqueConstraint("source_id", "number"),)
