@@ -3,7 +3,7 @@ import aiohttp
 from urllib.parse import urljoin
 from typing import Any
 from legal_ai.models.schemas import TargetPayload, SourcePayload
-from legal_ai.interfaces.crawler import CrawlerInterface
+from legal_ai.interfaces import CrawlerInterface
 
 
 class SGGCrawler(CrawlerInterface):
@@ -11,6 +11,10 @@ class SGGCrawler(CrawlerInterface):
     url = "https://www.sgg.gov.ma/BulletinOfficiel.aspx"
     base_url = "https://www.sgg.gov.ma/"
     api_url = "https://www.sgg.gov.ma/DesktopModules/MVC/TableListBO/BO/AjaxMethod"
+
+    @property
+    def source(self):
+        return SourcePayload(name=self.name, url=self.url)
 
     async def _get_page_content(self) -> bytes | None:
         """Get page content and return a response."""
@@ -31,7 +35,7 @@ class SGGCrawler(CrawlerInterface):
             raise ValueError()
         return str(token.attrs["value"])
 
-    async def crawl_and_return_targets(self) -> list[TargetPayload]:
+    async def crawl_and_return_targets(self, task_id: int) -> list[TargetPayload]:
         """
         Get page content, parse target info and return a list of Target
         instances.
@@ -56,6 +60,8 @@ class SGGCrawler(CrawlerInterface):
         # parse the json
         for obj in json:
             url = urljoin(self.base_url, obj["BoUrl"])
-            target = TargetPayload(url=url, number=obj["BoNum"])
+            target = TargetPayload(
+                url=url, number=obj["BoNum"], source=self.source, task_id=task_id
+            )
             targets.append(target)
         return targets

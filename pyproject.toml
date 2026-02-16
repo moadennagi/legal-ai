@@ -1,5 +1,5 @@
 [project]
-name = "legal-ai"
+name = "legal_ai"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "aiohttp>=3.13.3",
     "beautifulsoup4>=4.14.3",
+    "psycopg2-binary>=2.9.11",
     "pydantic>=2.12.5",
     "pytest>=9.0.2",
     "sqlalchemy>=2.0.46",

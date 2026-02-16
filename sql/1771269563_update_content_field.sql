@@ -1,0 +1,1 @@
+ALTER TABLE "documents" RENAME COLUMN "content" TO "fiel_path";
