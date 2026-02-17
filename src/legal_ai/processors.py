@@ -1,14 +1,16 @@
-import os
-import aiohttp
 import logging
+import os
+from datetime import datetime, timezone
 from pathlib import Path
+
+import aiohttp
+
+from legal_ai.database import get_session
 from legal_ai.interfaces import DownloaderInterface
-from legal_ai.repositories.document import DocumentRepository
 from legal_ai.models.document import Document
 from legal_ai.models.schemas import TargetPayload
-from datetime import datetime, timezone
+from legal_ai.repositories.document import DocumentRepository, TargetRepository
 from legal_ai.settings import settings
-from legal_ai.database import get_session
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +19,9 @@ class DocumentProcessor:
     def write_document_to_path(self, content: bytes, number: str) -> str:
         """Write pdf content to path"""
         file_path = self._get_file_path(number)
-        with open(f"{file_path}.pdf", "wb") as fp:
+        with open(file_path, "wb") as fp:
             fp.write(content)
-        return f"{file_path}.pdf"
+        return file_path
 
     def read_document_file_content(self, number: str) -> bytes:
         """Read document file content"""
@@ -41,11 +43,12 @@ class DocumentProcessor:
         file_path = os.path.join(settings.file_path, number)
         return f"{file_path}.pdf"
 
-    async def download_target_content(
+    async def download_target_content_and_insert_document(
         self,
         target: TargetPayload,
         downloader: DownloaderInterface,
         document_repository: DocumentRepository,
+        target_repository: TargetRepository,
         http_session: aiohttp.ClientSession,
         overwrite_downloaded_file: bool = False,
     ) -> Document:
@@ -61,5 +64,11 @@ class DocumentProcessor:
 
         document.file_path = self._get_file_path(target.number)
         with get_session() as session:
-            document_repository.insert_single_document(session=session, document=document)
+            document_id = document_repository.insert_single_document(
+                session=session, document=document
+            )
+            assert target.row_id
+            target_repository.update_target_document_id(
+                session=session, target_id=target.row_id, document_id=document_id
+            )
         return document

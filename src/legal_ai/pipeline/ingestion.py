@@ -10,7 +10,7 @@ from legal_ai.database import get_session
 from legal_ai.interfaces import CrawlerInterface
 from legal_ai.models.document import Document, Target, TaskStatus
 from legal_ai.models.schemas import TargetPayload
-from legal_ai.repositories.document import DocumentRepository, TargetRespository
+from legal_ai.repositories.document import DocumentRepository, TargetRepository
 from legal_ai.repositories.source import SourceRepository
 from legal_ai.repositories.task import TaskRepository
 from legal_ai.utils import run_with_semaphore
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 class DataIngesion:
     def __init__(self) -> None:
-        self.target_repository = TargetRespository()
+        self.target_repository = TargetRepository()
         self.document_repository = DocumentRepository()
         self.task_repository = TaskRepository()
         self.source_repository = SourceRepository()
@@ -86,11 +86,12 @@ class DataIngesion:
         sem = asyncio.Semaphore(settings.semaphore)
         async with aiohttp.ClientSession(timeout=timeout) as http_session:
             for target in targets_payload:
-                coroutine = self.document_processor.download_target_content(
+                coroutine = self.document_processor.download_target_content_and_insert_document(
                     http_session=http_session,
                     target=target,
                     downloader=self.downloader,
                     document_repository=self.document_repository,
+                    target_repository=self.target_repository,
                 )
                 coroutines.append(run_with_semaphore(sem, coroutine))
             logger.info(f"Processing {len(coroutines)}")

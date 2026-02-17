@@ -3,11 +3,12 @@ from legal_ai.models.document import Target, Document
 from typing import Any
 from legal_ai.models.schemas import TargetPayload
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import update, select
 from legal_ai.repositories.source import SourceRepository
 from datetime import datetime, timezone
 
 
-class TargetRespository:
+class TargetRepository:
     def __init__(self) -> None:
         self.source_store = SourceRepository()
 
@@ -25,6 +26,7 @@ class TargetRespository:
 
     def construct_target_payload_from_target(self, target: Target) -> TargetPayload:
         target_payload = TargetPayload(
+            row_id=target.id,
             number=target.number,
             url=target.url,
             source_id=target.source_id,
@@ -62,6 +64,11 @@ class TargetRespository:
             res = session.execute(stmt)
             return res.rowcount
 
+    def update_target_document_id(self, session: Session, target_id: int, document_id: int):
+        """Update target having target_id with the inserted document.id"""
+        stmt = update(Target).where(Target.id == target_id).values({"document_id": document_id})
+        session.execute(stmt)
+
 
 class DocumentRepository:
     def construct_document_from_target_payload(self, target: TargetPayload) -> Document:
@@ -97,6 +104,7 @@ class DocumentRepository:
             index_elements=["source_id", "number"],
         )
         res = session.execute(insert_stmt)
+        session.flush()
         return res.rowcount
 
     def insert_single_document(self, session: Session, document: Document) -> int:
@@ -105,7 +113,16 @@ class DocumentRepository:
         insert_stmt = insert(Document).values(data_to_insert)
         insert_stmt = insert_stmt.on_conflict_do_nothing(
             index_elements=["source_id", "number"],
+        ).returning(Document.id)
+        res = session.execute(insert_stmt)
+        row = res.fetchone()
+        if row:
+            return row[0]
+
+        stmt = select(Document).where(
+            Document.number == document.number, Document.source_id == document.source_id
         )
-        session.execute(insert_stmt)
-        session.flush()
-        return document.id
+        row = session.scalar(stmt)
+        if not row:
+            raise ValueError()
+        return row.id

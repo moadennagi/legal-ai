@@ -16,9 +16,9 @@ class TaskPayload(BaseModel):
 
 
 class TargetPayload(BaseModel):
+    row_id: int | None = None
     number: str
     url: str
-    content: str | None = None
     task_id: int | None = None
     source_id: int | None = None
     document_id: int | None = None
