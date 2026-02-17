@@ -2,8 +2,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import create_engine
 from contextlib import contextmanager
 from typing import Generator, Any
+from legal_ai.settings import settings
 
-engine = create_engine("postgresql://postgres:mysecretpassword@0.0.0.0:5432/legal_ai", echo=True)
+engine = create_engine(settings.database_url)
 
 
 @contextmanager

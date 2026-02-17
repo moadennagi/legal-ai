@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     file_path: str
     semaphore: int = 10
+    database_url: str = "postgresql://postgres:mysecretpassword@0.0.0.0:5432/legal_ai"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
