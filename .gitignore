@@ -66,3 +66,4 @@ htmlcov/
 notes.md
 
 data
+*.log

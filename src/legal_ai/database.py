@@ -5,6 +5,7 @@ from typing import Generator, Any
 
 engine = create_engine("postgresql://postgres:mysecretpassword@0.0.0.0:5432/legal_ai", echo=True)
 
+
 @contextmanager
 def get_session() -> Generator[Session, Any, None]:
     session = Session(engine)

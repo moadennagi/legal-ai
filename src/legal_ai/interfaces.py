@@ -14,5 +14,5 @@ class CrawlerInterface(ABC):
 
 class DownloaderInterface(ABC):
     @abstractmethod
-    async def download_document(self, url: str,  http_session: aiohttp.ClientSession) -> bytes:
+    async def download_document(self, url: str, http_session: aiohttp.ClientSession) -> bytes:
         pass

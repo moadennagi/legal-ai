@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field
 from datetime import datetime, timezone
+from legal_ai.models.document import TaskStatus
+
 
 class SourcePayload(BaseModel):
     name: str
@@ -9,6 +11,8 @@ class SourcePayload(BaseModel):
 
 class TaskPayload(BaseModel):
     id: int | None = None
+    source_id: int
+    status: TaskStatus
 
 
 class TargetPayload(BaseModel):

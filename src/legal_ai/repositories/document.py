@@ -11,7 +11,8 @@ class TargetRespository:
     def __init__(self) -> None:
         self.source_store = SourceRepository()
 
-    def create_insertion_data(self, object: TargetPayload | Document) -> dict[str, Any]:
+    def create_insertion_data(self, object: TargetPayload) -> dict[str, Any]:
+        """Return a dict of TargetPayload (object) data"""
         columns_to_exclude = {
             "id",
         }
@@ -23,12 +24,14 @@ class TargetRespository:
         return data
 
     def construct_target_payload_from_target(self, target: Target) -> TargetPayload:
-        target_payload = TargetPayload(number=target.number, url=target.url)
-        data = target.__dict__
-        for k, value in data.items():
-            if k not in TargetPayload.__dict__.keys():
-                continue
-            setattr(target_payload, k, value)
+        target_payload = TargetPayload(
+            number=target.number,
+            url=target.url,
+            source_id=target.source_id,
+            task_id=target.task_id,
+            created_at=target.created_at,
+            updated_at=target.updated_at,
+        )
         return target_payload
 
     def set_source_id(self, session: Session, target: TargetPayload) -> TargetPayload:
@@ -39,9 +42,7 @@ class TargetRespository:
         return target
 
     def insert_targets(self, session: Session, targets_payload: list[TargetPayload]) -> int:
-        """Insert a list of Targets and return the count
-        handles integrity error.
-        """
+        """Insert a list of Targets and return the count"""
         # transform basemodel to ORM
         targets_dicts: list[dict[str, Any]] = []
         for target_payload in targets_payload:
@@ -58,35 +59,53 @@ class TargetRespository:
                     "updated_at": int(datetime.now(tz=timezone.utc).timestamp()),
                 },
             )
-            session.execute(stmt)
+            res = session.execute(stmt)
+            return res.rowcount
 
 
 class DocumentRepository:
     def construct_document_from_target_payload(self, target: TargetPayload) -> Document:
-        document = Document(number=target.number, url=target.url)
-        data = target.__dict__
-        for k, value in data.items():
-            if k not in Document.__dict__.keys():
-                continue
-            if k == "created_at":
-                value = int(datetime.now(tz=timezone.utc).timestamp())
-            setattr(document, k, value)
+        """Constructs an instance of Document from TargetPayload"""
+        document = Document(
+            number=target.number,
+            url=target.url,
+            source_id=target.source_id,
+            created_at=int(datetime.now(tz=timezone.utc).timestamp()),
+        )
         return document
 
-    def create_insertion_data(self, object: TargetPayload | Document) -> dict[str, Any]:
+    def create_insertion_data(self, object: Document) -> dict[str, Any]:
+        """Return a dict of document (object) data"""
         columns_to_exclude = {
             "id",
         }
         data = {
             c.name: getattr(object, c.name, None)
-            for c in Target.__table__.columns
+            for c in Document.__table__.columns
             if c.name not in columns_to_exclude
         }
         return data
 
-    def insert_documents(self, session: Session, documents: list[Document]) -> list[Document]:
-        stmt = insert(Document).values(documents)
-        stmt = stmt.on_conflict_do_nothing(
+    def insert_documents(self, session: Session, documents: list[Document]) -> int:
+        """Given a list of documents bulk insert into the database"""
+        documents_to_insert: list[dict[str, Any]] = []
+        for document in documents:
+            data_to_insert = self.create_insertion_data(document)
+            documents_to_insert.append(data_to_insert)
+        insert_stmt = insert(Document).values(documents_to_insert)
+        insert_stmt = insert_stmt.on_conflict_do_nothing(
             index_elements=["source_id", "number"],
         )
-        session.execute(stmt)
+        res = session.execute(insert_stmt)
+        return res.rowcount
+
+    def insert_single_document(self, session: Session, document: Document) -> int:
+        """Insert a single document and return the id"""
+        data_to_insert = self.create_insertion_data(document)
+        insert_stmt = insert(Document).values(data_to_insert)
+        insert_stmt = insert_stmt.on_conflict_do_nothing(
+            index_elements=["source_id", "number"],
+        )
+        session.execute(insert_stmt)
+        session.flush()
+        return document.id
