@@ -1,0 +1,2 @@
+ALTER TABLE "targets" ADD COLUMN "official_date" DATE DEFAULT CURRENT_DATE;
+ALTER TABLE "documents" ADD COLUMN "official_date" DATE DEFAULT CURRENT_DATE; 

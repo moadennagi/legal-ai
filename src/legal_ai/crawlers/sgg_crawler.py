@@ -4,6 +4,7 @@ from urllib.parse import urljoin
 from typing import Any
 from legal_ai.models.schemas import TargetPayload, SourcePayload
 from legal_ai.interfaces import CrawlerInterface
+from legal_ai.utils import parse_ms_json_date
 
 
 class SGGCrawler(CrawlerInterface):
@@ -60,8 +61,13 @@ class SGGCrawler(CrawlerInterface):
         # parse the json
         for obj in json:
             url = urljoin(self.base_url, obj["BoUrl"])
+            official_date = parse_ms_json_date(obj["BoDate"])
             target = TargetPayload(
-                url=url, number=obj["BoNum"], source=self.source, task_id=task_id
+                url=url,
+                number=obj["BoNum"],
+                source=self.source,
+                task_id=task_id,
+                official_date=official_date,
             )
             targets.append(target)
         return targets

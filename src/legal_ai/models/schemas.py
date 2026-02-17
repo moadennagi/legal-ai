@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from legal_ai.models.document import TaskStatus
 
 
@@ -22,6 +22,7 @@ class TargetPayload(BaseModel):
     task_id: int | None = None
     source_id: int | None = None
     document_id: int | None = None
+    official_date: date
     claimed_at: int | None = None
     updated_at: int | None = None
     created_at: int = Field(default_factory=lambda: int(datetime.now(tz=timezone.utc).timestamp()))

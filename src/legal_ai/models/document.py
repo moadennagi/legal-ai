@@ -1,4 +1,5 @@
 from sqlalchemy import ForeignKey, UniqueConstraint
+from datetime import date
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from enum import Enum
@@ -42,6 +43,8 @@ class Document(Base):
     created_at: Mapped[int]
     updated_at: Mapped[int | None] = mapped_column(nullable=True)
 
+    official_date: Mapped[date]
+
     source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"))
 
     source: Mapped["Source"] = relationship(back_populates="documents")
@@ -60,6 +63,8 @@ class Target(Base):
     created_at: Mapped[int]
     updated_at: Mapped[int | None] = mapped_column(nullable=True)
     claimed_at: Mapped[int | None] = mapped_column(nullable=True)
+
+    official_date: Mapped[date]
 
     task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"))
     document_id: Mapped[int | None] = mapped_column(ForeignKey("documents.id"), nullable=True)

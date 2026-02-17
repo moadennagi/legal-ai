@@ -33,6 +33,7 @@ class TargetRepository:
             task_id=target.task_id,
             created_at=target.created_at,
             updated_at=target.updated_at,
+            official_date=target.official_date,
         )
         return target_payload
 
@@ -58,6 +59,7 @@ class TargetRepository:
                 set_={
                     "task_id": stmt.excluded.task_id,
                     "url": stmt.excluded.url,
+                    "official_date": stmt.excluded.official_date,
                     "updated_at": int(datetime.now(tz=timezone.utc).timestamp()),
                 },
             )
@@ -76,6 +78,7 @@ class DocumentRepository:
         document = Document(
             number=target.number,
             url=target.url,
+            official_date=target.official_date,
             source_id=target.source_id,
             created_at=int(datetime.now(tz=timezone.utc).timestamp()),
         )
@@ -111,8 +114,9 @@ class DocumentRepository:
         """Insert a single document and return the id"""
         data_to_insert = self.create_insertion_data(document)
         insert_stmt = insert(Document).values(data_to_insert)
-        insert_stmt = insert_stmt.on_conflict_do_nothing(
+        insert_stmt = insert_stmt.on_conflict_do_update(
             index_elements=["source_id", "number"],
+            set_={"official_date": insert_stmt.excluded.official_date},
         ).returning(Document.id)
         res = session.execute(insert_stmt)
         row = res.fetchone()
