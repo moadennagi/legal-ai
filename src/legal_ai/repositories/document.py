@@ -130,3 +130,14 @@ class DocumentRepository:
         if not row:
             raise ValueError()
         return row.id
+
+    def collect_documents_without_content(self, session: Session) -> list[Document]:
+        """Return a list of documents without text content"""
+        stmt = select(Document).where(Document.text_content.is_(None))
+        res = session.execute(stmt).scalars().all()
+        return res
+
+    def update_document_content(self, session: Session, document_id: int, content: str):
+        stmt = update(Document).where(Document.id == document_id).values({"text_content": content})
+        session.execute(stmt)
+        session.flush()
