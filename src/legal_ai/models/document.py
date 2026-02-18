@@ -40,6 +40,7 @@ class Document(Base):
     number: Mapped[str]
     file_path: Mapped[str]
 
+    text_content: Mapped[str | None] = mapped_column(nullable=True)
     created_at: Mapped[int]
     updated_at: Mapped[int | None] = mapped_column(nullable=True)
 
@@ -48,7 +49,9 @@ class Document(Base):
     source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"))
 
     source: Mapped["Source"] = relationship(back_populates="documents")
-    target: Mapped["Target"] = relationship(back_populates="document", single_parent=True)
+    target: Mapped["Target"] = relationship(
+        back_populates="document", single_parent=True, uselist=False
+    )
 
     __table_args__ = (UniqueConstraint("number", "source_id"),)
 
@@ -70,7 +73,9 @@ class Target(Base):
     document_id: Mapped[int | None] = mapped_column(ForeignKey("documents.id"), nullable=True)
     source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"))
 
-    document: Mapped["Document"] = relationship(back_populates="target", single_parent=True)
+    document: Mapped["Document"] = relationship(
+        back_populates="target", single_parent=True, uselist=False
+    )
     task: Mapped["Task"] = relationship(back_populates="targets")
     source: Mapped["Source"] = relationship(back_populates="targets")
 
