@@ -1,0 +1,1 @@
+ALTER TABLE "targets" ADD CONSTRAINT uq_document_id_per_target UNIQUE (document_id);
