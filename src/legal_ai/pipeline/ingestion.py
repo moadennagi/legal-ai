@@ -3,7 +3,7 @@ import logging
 from typing import Coroutine
 
 import aiohttp
-from processors import DocumentProcessor
+from legal_ai.processors import DocumentProcessor
 from sqlalchemy import select
 
 from legal_ai.database import get_session
