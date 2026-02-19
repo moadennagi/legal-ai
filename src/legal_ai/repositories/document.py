@@ -1,18 +1,20 @@
-from sqlalchemy.orm import Session
-from legal_ai.models.document import Target, Document
-from typing import Any
-from legal_ai.models.schemas import TargetPayload
-from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy import update, select
-from legal_ai.repositories.source import SourceRepository
 from datetime import datetime, timezone
+from typing import Any
+
+from sqlalchemy import select, update
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.orm import Session
+
+from legal_ai.models.document import Document, DocumentChunk, Target
+from legal_ai.models.schemas import TargetPayload
+from legal_ai.repositories.source import SourceRepository
 
 
 class TargetRepository:
     def __init__(self) -> None:
         self.source_store = SourceRepository()
 
-    def create_insertion_data(self, object: TargetPayload) -> dict[str, Any]:
+    def get_dict_data(self, object: TargetPayload) -> dict[str, Any]:
         """Return a dict of TargetPayload (object) data"""
         columns_to_exclude = {
             "id",
@@ -50,7 +52,7 @@ class TargetRepository:
         targets_dicts: list[dict[str, Any]] = []
         for target_payload in targets_payload:
             self.set_source_id(session=session, target=target_payload)
-            targets_dicts.append(self.create_insertion_data(target_payload))
+            targets_dicts.append(self.get_dict_data(target_payload))
 
         if targets_dicts:
             stmt = insert(Target).values(targets_dicts)
@@ -84,7 +86,7 @@ class DocumentRepository:
         )
         return document
 
-    def create_insertion_data(self, object: Document) -> dict[str, Any]:
+    def get_dict_data(self, object: Document) -> dict[str, Any]:
         """Return a dict of document (object) data"""
         columns_to_exclude = {
             "id",
@@ -100,7 +102,7 @@ class DocumentRepository:
         """Given a list of documents bulk insert into the database"""
         documents_to_insert: list[dict[str, Any]] = []
         for document in documents:
-            data_to_insert = self.create_insertion_data(document)
+            data_to_insert = self.get_dict_data(document)
             documents_to_insert.append(data_to_insert)
         insert_stmt = insert(Document).values(documents_to_insert)
         insert_stmt = insert_stmt.on_conflict_do_nothing(
@@ -112,7 +114,7 @@ class DocumentRepository:
 
     def insert_single_document(self, session: Session, document: Document) -> int:
         """Insert a single document and return the id"""
-        data_to_insert = self.create_insertion_data(document)
+        data_to_insert = self.get_dict_data(document)
         insert_stmt = insert(Document).values(data_to_insert)
         insert_stmt = insert_stmt.on_conflict_do_update(
             index_elements=["source_id", "number"],
@@ -141,3 +143,23 @@ class DocumentRepository:
         stmt = update(Document).where(Document.id == document_id).values({"text_content": content})
         session.execute(stmt)
         session.flush()
+
+
+class DocumentChunkRepository:
+    def get_dict_data(self, document_chunk: DocumentChunk) -> dict[str, Any]:
+        """_summary_
+
+        Args:
+            document_chunk (DocumentChunk): _description_
+
+        Returns:
+            dict[str, Any]: _description_
+        """
+        return dict(
+            document_id=document_chunk.document_id,
+            content=document_chunk.content,
+            embedding=document_chunk.embedding,
+            created_at=document_chunk.created_at,
+            updated_at=document_chunk.updated_at,
+            token_count=document_chunk.token_count,
+        )

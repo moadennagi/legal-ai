@@ -1,7 +1,6 @@
 from legal_ai.database import get_session
 from legal_ai.models.document import Document
 from legal_ai.repositories.document import DocumentRepository
-from sqlalchemy.orm import Session
 
 from docling.document_converter import DocumentConverter, InputFormat, PdfFormatOption
 from docling.datamodel.pipeline_options import PdfPipelineOptions
@@ -29,6 +28,7 @@ class DocumentProcessing:
         return mark_down_content
 
     def extract_text_as_dict(self, document: Document) -> dict[str, Any]:
+        """Using docling to extract text qs dict from document file content"""
         source = document.file_path
         doc = self.converter.convert(source).document
         mark_down_content = doc.export_to_dict()

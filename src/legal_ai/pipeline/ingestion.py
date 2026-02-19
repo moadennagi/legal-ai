@@ -13,7 +13,7 @@ from legal_ai.models.schemas import TargetPayload
 from legal_ai.repositories.document import DocumentRepository, TargetRepository
 from legal_ai.repositories.source import SourceRepository
 from legal_ai.repositories.task import TaskRepository
-from legal_ai.utils import run_with_semaphore
+from legal_ai.utils.data import run_with_semaphore
 from legal_ai.downloader import Downloader
 from legal_ai.settings import settings
 
@@ -32,7 +32,11 @@ class DataIngesion:
     def _collect_targets(
         self,
     ) -> list[TargetPayload]:
-        """Get all target from recent tasks"""
+        """Return a list of TargetPayload instances
+
+        Returns:
+            list[TargetPayload]: TargetPayload instances
+        """
         with get_session() as session:
             # TODO: decide what tasks I zhould take, do I create a downloading task for every task ?
             tasks = self.task_repository.get_tasks(session)

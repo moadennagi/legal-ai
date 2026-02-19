@@ -1,6 +1,7 @@
 from sqlalchemy import ForeignKey, UniqueConstraint
 from datetime import date
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from pgvector.sqlalchemy import Vector
 
 from enum import Enum
 
@@ -52,8 +53,31 @@ class Document(Base):
     target: Mapped["Target"] = relationship(
         back_populates="document", single_parent=True, uselist=False
     )
+    chunks: Mapped[list["DocumentChunk"]] = relationship(back_populates="document")
 
     __table_args__ = (UniqueConstraint("number", "source_id"),)
+
+
+class DocumentChunk(Base):
+    __tablename__ = "document_chunks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    content: Mapped[str]
+    chunk_index: Mapped[int]
+    embedding: Mapped[Vector | None] = mapped_column(Vector(768), nullable=True)
+
+    created_at: Mapped[int]
+    updated_at: Mapped[int | None] = mapped_column(nullable=True)
+
+    token_count: Mapped[int | None] = mapped_column(nullable=True)
+    start_char: Mapped[int | None] = mapped_column(nullable=True)
+    end_char: Mapped[int | None] = mapped_column(nullable=True)
+
+    document_id: Mapped[int] = mapped_column(ForeignKey("documents.id"))
+    document: Mapped[Document] = relationship(back_populates="chunks")
+
+    __table_args__ = (UniqueConstraint("document_id", "chunk_index"),)
 
 
 class Target(Base):
@@ -73,9 +97,7 @@ class Target(Base):
     document_id: Mapped[int | None] = mapped_column(ForeignKey("documents.id"), nullable=True)
     source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"))
 
-    document: Mapped["Document"] = relationship(
-        back_populates="target", single_parent=True, uselist=False
-    )
+    document: Mapped["Document"] = relationship(back_populates="target", single_parent=True)
     task: Mapped["Task"] = relationship(back_populates="targets")
     source: Mapped["Source"] = relationship(back_populates="targets")
 
