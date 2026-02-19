@@ -41,6 +41,7 @@ class DocumentProcessing:
             for document in documents:
                 try:
                     content = self.extract_text_as_markdown(document)
+                    # TODO: fix heading before insertion
                     document.text_content = content
                     session.add(document)
                     session.commit()

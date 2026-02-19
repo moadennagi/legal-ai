@@ -19,18 +19,15 @@ if __name__ == "__main__":
         generation_model="dolphin-llama3",
     )
 
-    async def main():
+    async def crawl_and_insert_targets():
         crawler = SGGCrawler()
         await data_ingestion.crawl_and_insert_targets(crawler=crawler)
+
+    async def download_and_insert_documents():
         await data_ingestion.download_target_contents()
 
-    def process():
-        # document_processing.extract_text_from_documents()
-        with get_session() as session:
-            stmt = select(Document).where(Document.number == "7462")
-            doc = session.execute(stmt).scalar_one()
-            content = document_processing.extract_text_as_dict(doc)
-            print(len(content))
+    def extract_text_from_documents():
+        document_processing.extract_text_from_documents()
 
     def insert_document_chunks():
         # read one document, check the hierarchy
@@ -38,14 +35,15 @@ if __name__ == "__main__":
             stmt = (
                 select(Document)
                 .outerjoin(DocumentChunk, Document.id == DocumentChunk.document_id)
-                .where(DocumentChunk.id.is_(None))
+                .where(DocumentChunk.id.is_(None), Document.number == "7462")
             )
             documents = session.execute(stmt).scalars().all()
             document_embedding.split_and_insert_document_chunks(documents=documents)
 
     def query_with_rag(query: str):
-        answer = rag.ask(query=query, similarity_threshold=0.3)
+        answer = rag.ask(user_query=query, similarity_threshold=0.3)
 
+    # extract_text_from_documents()
     insert_document_chunks()
     # process()
-    # query_with_rag("Quelles sont les dernières nominations ?")
+    query_with_rag("quel article crée l'agence marocaine du médicament?")

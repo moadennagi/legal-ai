@@ -47,12 +47,15 @@ class DocumentEmbedding:
         if not document.text_content:
             return []
 
-        fixed_markdown = fix_heading_hierarchy(document.text_content)
+        fixed_markdown = fix_heading_hierarchy(document.text_content, articles_as_bold=False)
         md_sections = self.md_splitter.split_text(fixed_markdown)
         chunks = self.text_splitter.split_documents(md_sections)
 
         document_chunks: list[DocumentChunk] = []
         for i, chunk in enumerate(chunks):
+            if not chunk.page_content.strip():
+                continue
+
             embedding = self.get_embedding_for_chunk(chunk=chunk.page_content)
             document_chunks.append(
                 DocumentChunk(
@@ -60,6 +63,7 @@ class DocumentEmbedding:
                     chunk_index=i,
                     content=chunk.page_content,
                     embedding=embedding,
+                    chunk_metadata=chunk.metadata,
                 )
             )
         return document_chunks
@@ -102,6 +106,7 @@ class DocumentEmbedding:
                             "embedding": stmt.excluded.embedding,
                             "token_count": stmt.excluded.token_count,
                             "updated_at": stmt.excluded.updated_at,
+                            "metadata": stmt.excluded.metadata,
                         },
                     )
                     session.execute(stmt)

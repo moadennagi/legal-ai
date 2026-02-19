@@ -135,7 +135,7 @@ class DocumentRepository:
 
     def collect_documents_without_content(self, session: Session) -> list[Document]:
         """Return a list of documents without text content"""
-        stmt = select(Document).where(Document.text_content.is_(None))
+        stmt = select(Document).where(Document.text_content.is_(None), Document.number == "7462")
         res = session.execute(stmt).scalars().all()
         return res
 
@@ -162,4 +162,6 @@ class DocumentChunkRepository:
             created_at=document_chunk.created_at,
             updated_at=document_chunk.updated_at,
             token_count=document_chunk.token_count,
+            chunk_index=document_chunk.chunk_index,
+            chunk_metadata=document_chunk.chunk_metadata,
         )

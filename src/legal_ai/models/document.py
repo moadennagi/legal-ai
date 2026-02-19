@@ -2,6 +2,7 @@ from sqlalchemy import ForeignKey, UniqueConstraint
 from datetime import date
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from pgvector.sqlalchemy import Vector
+from sqlalchemy.dialects.postgresql import JSONB
 
 from enum import Enum
 
@@ -66,6 +67,8 @@ class DocumentChunk(Base):
     content: Mapped[str]
     chunk_index: Mapped[int]
     embedding: Mapped[Vector | None] = mapped_column(Vector(768), nullable=True)
+
+    chunk_metadata: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
 
     created_at: Mapped[int]
     updated_at: Mapped[int | None] = mapped_column(nullable=True)
