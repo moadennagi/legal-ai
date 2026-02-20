@@ -2,4 +2,5 @@
 
 from legal_ai.repositories.source import SourceRepository
 from legal_ai.repositories.task import TaskRepository
-from legal_ai.repositories.document import DocumentRepository, TargetRepository
+from legal_ai.repositories.document import DocumentRepository
+from legal_ai.repositories.target import TargetRepository

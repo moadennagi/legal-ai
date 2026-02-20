@@ -1,5 +1,4 @@
 from legal_ai.database import get_session
-from legal_ai.models.document import Document
 from legal_ai.repositories.document import DocumentRepository
 
 from docling.document_converter import DocumentConverter, InputFormat, PdfFormatOption

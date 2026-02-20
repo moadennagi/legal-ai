@@ -9,7 +9,8 @@ from legal_ai.database import get_session
 from legal_ai.interfaces import DownloaderInterface
 from legal_ai.models.document import Document
 from legal_ai.models.schemas import TargetPayload
-from legal_ai.repositories.document import DocumentRepository, TargetRepository
+from legal_ai.repositories.document import DocumentRepository
+from legal_ai.repositories.target import TargetRepository
 from legal_ai.settings import settings
 
 logger = logging.getLogger(__name__)

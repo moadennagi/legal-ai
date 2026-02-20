@@ -11,7 +11,8 @@ from legal_ai.database import get_session
 from legal_ai.interfaces import CrawlerInterface
 from legal_ai.models.document import Document, Target, TaskStatus
 from legal_ai.models.schemas import TargetPayload
-from legal_ai.repositories.document import DocumentRepository, TargetRepository
+from legal_ai.repositories.document import DocumentRepository
+from legal_ai.repositories.target import TargetRepository
 from legal_ai.repositories.source import SourceRepository
 from legal_ai.repositories.task import TaskRepository
 from legal_ai.utils.data import run_with_semaphore

@@ -1,4 +1,5 @@
 if __name__ == "__main__":
+    import asyncio
     from legal_ai.pipeline.ingestion import DataIngesion
     from legal_ai.logging_config import setup_logging
     from legal_ai.crawlers.sgg_crawler import SGGCrawler
@@ -31,7 +32,7 @@ if __name__ == "__main__":
     def extract_text_from_documents():
         document_processing.extract_text_from_documents()
 
-    def insert_document_chunks():
+    async def insert_document_chunks():
         # read one document, check the hierarchy
         with get_session() as session:
             stmt = (
@@ -40,12 +41,20 @@ if __name__ == "__main__":
                 .where(DocumentChunk.id.is_(None))
             )
             documents = session.execute(stmt).scalars().all()
-            document_embedding.split_and_insert_document_chunks(documents=documents)
+            await document_embedding.split_and_insert_document_chunks(documents=documents)
 
     def query_with_rag(query: str):
-        answer = rag.ask(user_query=query, similarity_threshold=0.3)
+        answer = rag.ask(user_query=query, similarity_threshold=0.5)
         return answer
 
-    extract_text_from_documents()
-    # insert_document_chunks()
+    # extract_text_from_documents()
+    # asyncio.run(insert_document_chunks())
     # process()
+    while True:
+        q = input("Type a question: ")
+        res = query_with_rag(q)
+        print(res["answer"])
+        for source in res["sources"]:
+            print(source)
+        if q == "exit":
+            break
