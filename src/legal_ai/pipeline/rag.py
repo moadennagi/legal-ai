@@ -123,7 +123,7 @@ class RAG:
         for chunk in chunks:
             formatted_chunk = self.format_chunk_for_prompt(chunk)
             formatted_chunks.append(formatted_chunk)
-        print(formatted_chunks)
+
         prompt = self.augment_query(user_query=user_query, chunks=formatted_chunks)
         answer = self.get_answer_from_llm(prompt=prompt)
         sources = []
@@ -137,6 +137,4 @@ class RAG:
                     "distance": round(c.get("distance", 0), 4),
                 }
             )
-        print(answer)
-        print(sources)
         return {"answer": answer, "sources": sources}

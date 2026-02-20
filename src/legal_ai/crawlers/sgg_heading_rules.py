@@ -34,10 +34,6 @@ Hierarchy:
 
 import re
 
-# ═══════════════════════════════════════════════════════════════════════
-# ARTICLE DETECTION — these become **bold**, not headings
-# ═══════════════════════════════════════════════════════════════════════
-
 _ARTICLE_RE = re.compile(
     r"^(?:Article|ARTICLE|Art\.?\s*)\s*(?:premier|PREMIER|\d+)",
     re.IGNORECASE,
@@ -60,6 +56,7 @@ _KEYWORD_RULES: list[tuple[int, re.Pattern]] = [
     (1, re.compile(r"^TEXTES?\s+PARTICULIERS?$", re.IGNORECASE)),
     (1, re.compile(r"^AVIS\s+ET\s+COMMUNICATIONS?$", re.IGNORECASE)),
     (1, re.compile(r"^SOMMAIRE$", re.IGNORECASE)),
+    (1, re.compile(r"^[ÉE]DITIONS?\s+DE\s+TRADUCTION", re.IGNORECASE)),
     # ── H2: legal instruments (always start with these keywords) ──
     (2, re.compile(r"^Dahir\s+n[°º]", re.IGNORECASE)),
     (2, re.compile(r"^Loi\s+n[°º]", re.IGNORECASE)),
@@ -84,10 +81,6 @@ _KEYWORD_RULES: list[tuple[int, re.Pattern]] = [
     # Lettered subsections: "a. Topic...", "b. Topic..."
     (5, re.compile(r"^[a-z][\.\)]\s+")),
 ]
-
-# ═══════════════════════════════════════════════════════════════════════
-# CLASSIFICATION
-# ═══════════════════════════════════════════════════════════════════════
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$")
 

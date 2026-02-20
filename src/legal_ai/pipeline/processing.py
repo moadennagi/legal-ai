@@ -7,7 +7,6 @@ from docling.datamodel.pipeline_options import PdfPipelineOptions
 import logging
 from typing import Any
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -20,17 +19,15 @@ class DocumentProcessing:
             format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=options)}
         )
 
-    def extract_text_as_markdown(self, document: Document) -> str:
+    def _extract_markdown(self, file_path: str) -> str:
         """Using docling to extract text from document file content"""
-        source = document.file_path
-        doc = self.converter.convert(source).document
+        doc = self.converter.convert(file_path).document
         mark_down_content = doc.export_to_markdown()
         return mark_down_content
 
-    def extract_text_as_dict(self, document: Document) -> dict[str, Any]:
+    def _extract_text_as_dict(self, file_path: str) -> dict[str, Any]:
         """Using docling to extract text qs dict from document file content"""
-        source = document.file_path
-        doc = self.converter.convert(source).document
+        doc = self.converter.convert(file_path).document
         mark_down_content = doc.export_to_dict()
         return mark_down_content
 
@@ -38,14 +35,14 @@ class DocumentProcessing:
         """Extract text from documents and update them in the database"""
         with get_session() as session:
             documents = self.document_repository.collect_documents_without_content(session)
-            for document in documents:
-                try:
-                    content = self.extract_text_as_markdown(document)
-                    # TODO: fix heading before insertion
-                    document.text_content = content
-                    session.add(document)
+            doc_ids = [(doc.id, doc.file_path) for doc in documents]
+        for doc_id, file_path in doc_ids:
+            try:
+                content = self._extract_markdown(file_path=file_path)
+                with get_session() as session:
+                    self.document_repository.update_document_content(session, doc_id, content)
                     session.commit()
-                except Exception as e:
-                    session.rollback()
-                    logger.error(f"Failed to extract text from document {document.id}: {e}")
-                    continue
+            except Exception as e:
+                session.rollback()
+                logger.error(f"Failed to extract text from document {doc_id}: {e}")
+                continue

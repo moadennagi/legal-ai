@@ -7,11 +7,13 @@ if __name__ == "__main__":
     from sqlalchemy import select
     from legal_ai.models.document import Document, DocumentChunk
     from legal_ai.pipeline.embedding import DocumentEmbedding
+    from legal_ai.repositories.document import DocumentRepository
     from legal_ai.pipeline.rag import RAG
 
     setup_logging()
 
     data_ingestion = DataIngesion()
+    document_repository = DocumentRepository()
     document_processing = DocumentProcessing()
     document_embedding = DocumentEmbedding(embedding_model="nomic-embed-text")
     rag = RAG(
@@ -35,15 +37,15 @@ if __name__ == "__main__":
             stmt = (
                 select(Document)
                 .outerjoin(DocumentChunk, Document.id == DocumentChunk.document_id)
-                .where(DocumentChunk.id.is_(None), Document.number == "7462")
+                .where(DocumentChunk.id.is_(None))
             )
             documents = session.execute(stmt).scalars().all()
             document_embedding.split_and_insert_document_chunks(documents=documents)
 
     def query_with_rag(query: str):
         answer = rag.ask(user_query=query, similarity_threshold=0.3)
+        return answer
 
-    # extract_text_from_documents()
-    insert_document_chunks()
+    extract_text_from_documents()
+    # insert_document_chunks()
     # process()
-    query_with_rag("quel article crée l'agence marocaine du médicament?")

@@ -2,7 +2,7 @@ import ollama
 from typing import Any
 from legal_ai.models.document import Document, DocumentChunk
 from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
-from legal_ai.utils.heading_rules import fix_heading_hierarchy
+from legal_ai.crawlers.sgg_heading_rules import fix_heading_hierarchy
 from sqlalchemy.dialects.postgresql import insert
 from legal_ai.repositories.document import DocumentChunkRepository
 from legal_ai.database import get_session
@@ -56,6 +56,10 @@ class DocumentEmbedding:
             if not chunk.page_content.strip():
                 continue
 
+            # skip table of content
+            if chunk.metadata.get("division", "").strip().upper() == "SOMMAIRE":
+                continue
+
             embedding = self.get_embedding_for_chunk(chunk=chunk.page_content)
             document_chunks.append(
                 DocumentChunk(
@@ -90,24 +94,24 @@ class DocumentEmbedding:
             documents (list[Document]): a list of Document instances
         """
         document_chunks_dict_data: list[dict[str, Any]] = []
-        with get_session() as session:
-            for document in documents:
+        for document in documents:
+            with get_session() as session:
                 document_chunks = self.split_document_into_chunks(document)
                 document_chunks_dict_data = [
                     self.document_chunk_repository.get_dict_data(doc_chunk)
                     for doc_chunk in document_chunks
                 ]
-                if document_chunks_dict_data:
-                    stmt = insert(DocumentChunk).values(document_chunks_dict_data)
-                    stmt = stmt.on_conflict_do_update(
-                        index_elements=["document_id", "chunk_index"],
-                        set_={
-                            "content": stmt.excluded.content,
-                            "embedding": stmt.excluded.embedding,
-                            "token_count": stmt.excluded.token_count,
-                            "updated_at": stmt.excluded.updated_at,
-                            "metadata": stmt.excluded.metadata,
-                        },
-                    )
-                    session.execute(stmt)
-                    session.commit()
+                if not document_chunks_dict_data:
+                    continue
+                stmt = insert(DocumentChunk).values(document_chunks_dict_data)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["document_id", "chunk_index"],
+                    set_={
+                        "content": stmt.excluded.content,
+                        "embedding": stmt.excluded.embedding,
+                        "token_count": stmt.excluded.token_count,
+                        "updated_at": stmt.excluded.updated_at,
+                        "metadata": stmt.excluded.metadata,
+                    },
+                )
+                session.execute(stmt)

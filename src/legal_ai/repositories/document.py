@@ -135,7 +135,7 @@ class DocumentRepository:
 
     def collect_documents_without_content(self, session: Session) -> list[Document]:
         """Return a list of documents without text content"""
-        stmt = select(Document).where(Document.text_content.is_(None), Document.number == "7462")
+        stmt = select(Document).where(Document.text_content.is_(None))
         res = session.execute(stmt).scalars().all()
         return res
 
@@ -143,6 +143,20 @@ class DocumentRepository:
         stmt = update(Document).where(Document.id == document_id).values({"text_content": content})
         session.execute(stmt)
         session.flush()
+
+    def insert_documents_bulk(
+        self, session: Session, documents: list[Document | BaseException]
+    ) -> int:
+        """Given a list of documents insert them into the database"""
+        good_documents: list[Document] = []
+        errors: list[BaseException] = []
+        for document in documents:
+            if isinstance(document, BaseException):
+                errors.append(document)
+            else:
+                good_documents.append(document)
+        res = self.insert_documents(documents=good_documents, session=session)
+        return res
 
 
 class DocumentChunkRepository:

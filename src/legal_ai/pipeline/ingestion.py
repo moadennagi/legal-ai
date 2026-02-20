@@ -5,6 +5,7 @@ from typing import Coroutine
 import aiohttp
 from legal_ai.processors import DocumentProcessor
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from legal_ai.database import get_session
 from legal_ai.interfaces import CrawlerInterface
@@ -29,27 +30,24 @@ class DataIngesion:
         self.document_processor = DocumentProcessor()
         self.downloader = Downloader()
 
-    def _collect_targets(
-        self,
-    ) -> list[TargetPayload]:
+    def _collect_targets(self, session: Session) -> list[TargetPayload]:
         """Return a list of TargetPayload instances
 
         Returns:
             list[TargetPayload]: TargetPayload instances
         """
-        with get_session() as session:
-            # TODO: decide what tasks I zhould take, do I create a downloading task for every task ?
-            tasks = self.task_repository.get_tasks(session)
-            task_ids: list[int] = [task.id for task in tasks]
-            logger.info(f"Collected {len(task_ids)} tasks from the database")
-            # only get the targets for which the documents have no
-            stmt = select(Target).where(Target.task_id.in_(task_ids))
-            targets = session.execute(stmt).scalars().all()
-            logger.info(f"Found {len(targets)} targets")
-            targets_payload: list[TargetPayload] = [
-                self.target_repository.construct_target_payload_from_target(target)
-                for target in targets
-            ]
+        # TODO: decide what tasks I zhould take, do I create a downloading task for every task ?
+        tasks = self.task_repository.get_tasks(session)
+        task_ids: list[int] = [task.id for task in tasks]
+        logger.info(f"Collected {len(task_ids)} tasks from the database")
+        # only get the targets for which the documents have no
+        stmt = select(Target).where(Target.task_id.in_(task_ids))
+        targets = session.execute(stmt).scalars().all()
+        logger.info(f"Found {len(targets)} targets")
+        targets_payload: list[TargetPayload] = [
+            self.target_repository.construct_target_payload_from_target(target)
+            for target in targets
+        ]
         return targets_payload
 
     async def crawl_and_insert_targets(
@@ -79,15 +77,17 @@ class DataIngesion:
             res = self.target_repository.insert_targets(session, targets_payload)
             logger.info(f"Inserted {res} targets")
             task.status = TaskStatus.succeeded
-            session.flush()
 
     async def download_target_contents(self) -> list[Document | BaseException]:
         """Download documents for every crawling task without a download task"""
         # TODO: create a download task
         coroutines: list[Coroutine[None, None, Document]] = []
-        targets_payload = self._collect_targets()
         timeout = aiohttp.ClientTimeout()
         sem = asyncio.Semaphore(settings.semaphore)
+
+        with get_session() as session:
+            targets_payload = self._collect_targets(session=session)
+
         async with aiohttp.ClientSession(timeout=timeout) as http_session:
             for target in targets_payload:
                 coroutine = self.document_processor.download_target_content_and_insert_document(
@@ -101,20 +101,3 @@ class DataIngesion:
             logger.info(f"Processing {len(coroutines)}")
             documents = await asyncio.gather(*coroutines, return_exceptions=True)
             return documents
-
-    def insert_documents_bulk(self, documents: list[Document | BaseException]) -> int:
-        """Given a list of documents insert them into the database"""
-        good_documents: list[Document] = []
-        errors: list[BaseException] = []
-        with get_session() as session:
-            for document in documents:
-                if isinstance(document, BaseException):
-                    errors.append(document)
-                else:
-                    good_documents.append(document)
-            res = self.document_repository.insert_documents(
-                documents=good_documents, session=session
-            )
-            logger.info(f"Inserted {len(documents)}")
-            logger.warning(f"{len(errors)} errors")
-            return res
