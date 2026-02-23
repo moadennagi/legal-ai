@@ -4,7 +4,7 @@ from urllib.parse import urljoin
 from typing import Any
 from legal_ai.models.schemas import TargetPayload, SourcePayload
 from legal_ai.interfaces import CrawlerInterface
-from legal_ai.utils.data import parse_ms_json_date
+from legal_ai.utils import parse_ms_json_date
 
 
 class SGGCrawler(CrawlerInterface):

@@ -66,7 +66,7 @@ class DocumentChunk(Base):
 
     content: Mapped[str]
     chunk_index: Mapped[int]
-    embedding: Mapped[Vector | None] = mapped_column(Vector(768), nullable=True)
+    embedding: Mapped[Vector | None] = mapped_column(Vector(1024), nullable=True)
 
     chunk_metadata: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
 

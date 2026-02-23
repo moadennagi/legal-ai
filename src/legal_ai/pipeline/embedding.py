@@ -2,35 +2,26 @@ import ollama
 import re
 import asyncio
 from asyncio import Semaphore
-from legal_ai.utils.data import run_with_semaphore
+from legal_ai.utils import run_with_semaphore
 from typing import Any, Coroutine
 from legal_ai.models.document import Document
 from legal_ai.models.document import DocumentChunk
 from langchain_core.documents import Document as LangchainDocument
 from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
-from legal_ai.crawlers.sgg_heading_rules import fix_heading_hierarchy
+from legal_ai.crawlers.sgg_heading_rules import fix_heading_hierarchy, HEADERS_TO_SPLIT_ON
 from sqlalchemy.dialects.postgresql import insert
 from legal_ai.repositories.document import DocumentChunkRepository
 from legal_ai.database import get_session
 
-headers_to_split_on = [
-    ("#", "division"),  # DAHIR, TEXTES GENERAUX, TEXTES PARTICULIERS
-    ("##", "instrument"),  # Dahir n°, Loi n°, Décret n°, Arrêté…
-    ("###", "partie"),  # PREMIÈRE PARTIE…
-    ("####", "titre"),  # TITRE PREMIER…
-    ("#####", "chapitre"),  # Chapitre premier…
-    ("######", "section"),  # Dénomination et objet, Missions…
-]
-
 
 class DocumentEmbedding:
     def __init__(
-        self, embedding_model: str, chunk_size: int = 1000, chunk_overlap: int = 200
+        self, embedding_model: str, chunk_size: int = 1500, chunk_overlap: int = 300
     ) -> None:
         self.document_chunk_repository = DocumentChunkRepository()
         self.embedding_model = embedding_model
         self.md_splitter = MarkdownHeaderTextSplitter(
-            headers_to_split_on=headers_to_split_on,
+            headers_to_split_on=HEADERS_TO_SPLIT_ON,
             strip_headers=False,
         )
         self.text_splitter = RecursiveCharacterTextSplitter(
@@ -48,7 +39,7 @@ class DocumentEmbedding:
         Args:
             chunk (dict[str, Any]): a chunk as created by langchain text splitter
         """
-        metadata_keys = ["instrument", "partie", "titre", "chapitre"]
+        metadata_keys = ["instrument", "partie", "titre", "chapitre", "section"]
         breadcrumbs: list[str] = []
         if not chunk.metadata:
             return chunk.page_content
@@ -61,9 +52,18 @@ class DocumentEmbedding:
         header = " > ".join(breadcrumbs)
         return f"[{header}]\n{chunk.page_content}"
 
+    def _is_table_like(self, text: str) -> bool:
+        """Check if content is mostly table formatting (pipe-delimited rows)."""
+        lines = text.strip().splitlines()
+        if not lines:
+            return True
+        pipe_lines = sum(1 for line in lines if line.count("|") >= 2)
+        return pipe_lines / len(lines) > 0.5
+
     def _filter_chunks(self, chunks: list[LangchainDocument]) -> list[LangchainDocument]:
         """
-        Filter out badh chunks.
+        Filter out bad chunks: empty, too short, table-of-contents,
+        and table-like formatting artifacts.
 
         Args:
             chunks (list[LangchainDocument]): a list of langchain documents
@@ -73,10 +73,20 @@ class DocumentEmbedding:
         """
         good_chunks: list[LangchainDocument] = []
         for chunk in chunks:
-            if not chunk.page_content.strip():
+            content = chunk.page_content.strip()
+            if not content:
                 continue
+
             # skip table of content
+            # TODO: this is tighetly coupled to BO
             if chunk.metadata.get("division", "").strip().upper() == "SOMMAIRE":
+                continue
+
+            # skip very short chunks (headers, separators, etc.)
+            if len(content) < 50:
+                continue
+            # skip table-like formatting artifacts
+            if self._is_table_like(content):
                 continue
             good_chunks.append(chunk)
         return good_chunks
@@ -116,7 +126,7 @@ class DocumentEmbedding:
         for _, chunk in enumerate(chunks):
             # build an enriched chunk
             enriched_chunk = self._construct_enriched_content(chunk)
-            embedding_task = self.get_embedding_for_chunk(chunk=enriched_chunk)
+            embedding_task = self.get_embedding(chunk=enriched_chunk)
             embedding_tasks.append(run_with_semaphore(self.semaphore, embedding_task))
 
         results = await asyncio.gather(*embedding_tasks)
@@ -151,9 +161,9 @@ class DocumentEmbedding:
             )
         return document_chunks
 
-    async def get_embedding_for_chunk(self, chunk: str) -> list[float]:
+    async def get_embedding(self, chunk: str) -> list[float]:
         """
-        Get embedding for chunk.
+        Get embedding.
 
         Args:
             chunk (str):string representing a chunk of from a document
@@ -175,8 +185,8 @@ class DocumentEmbedding:
             documents (list[Document]): a list of Document instances
         """
         document_chunks_dict_data: list[dict[str, Any]] = []
-        for document in documents:
-            with get_session() as session:
+        with get_session() as session:
+            for document in documents:
                 chunks = self._split_document(document)
                 embeddings = await self._embded_chunks(chunks)
 
@@ -201,3 +211,4 @@ class DocumentEmbedding:
                     },
                 )
                 session.execute(stmt)
+                session.commit()

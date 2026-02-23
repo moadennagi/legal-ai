@@ -10,29 +10,29 @@ if __name__ == "__main__":
     from legal_ai.pipeline.embedding import DocumentEmbedding
     from legal_ai.repositories.document import DocumentRepository
     from legal_ai.pipeline.rag import RAG
+    from legal_ai.adapters import DoclingDocumentConverterAdapter
 
     setup_logging()
 
     data_ingestion = DataIngesion()
     document_repository = DocumentRepository()
-    document_processing = DocumentProcessing()
-    document_embedding = DocumentEmbedding(embedding_model="nomic-embed-text")
+    document_converter = DoclingDocumentConverterAdapter()
+    document_processing = DocumentProcessing(document_converter=document_converter)
+    document_embedding = DocumentEmbedding(embedding_model="bge-m3")
     rag = RAG(
-        embedding_model="nomic-embed-text",
-        generation_model="dolphin-llama3",
+        embedding_model="bge-m3",
+        generation_model="qwen2.5:7b",
     )
 
-    async def crawl_and_insert_targets():
+    async def ingest():
         crawler = SGGCrawler()
         await data_ingestion.crawl_and_insert_targets(crawler=crawler)
-
-    async def download_and_insert_documents():
         await data_ingestion.download_target_contents()
 
     def extract_text_from_documents():
         document_processing.extract_text_from_documents()
 
-    async def insert_document_chunks():
+    async def split_and_embed_chunks():
         # read one document, check the hierarchy
         with get_session() as session:
             stmt = (
@@ -44,7 +44,7 @@ if __name__ == "__main__":
             await document_embedding.split_and_insert_document_chunks(documents=documents)
 
     def query_with_rag(query: str):
-        answer = rag.ask(user_query=query, similarity_threshold=0.5)
+        answer = rag.ask(user_query=query, similarity_threshold=0.3)
         return answer
 
     # extract_text_from_documents()
@@ -53,8 +53,6 @@ if __name__ == "__main__":
     while True:
         q = input("Type a question: ")
         res = query_with_rag(q)
-        print(res["answer"])
-        for source in res["sources"]:
-            print(source)
         if q == "exit":
             break
+        print(res["answer"])
