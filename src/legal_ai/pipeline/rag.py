@@ -3,6 +3,7 @@ import ollama
 import re
 from sqlalchemy import text
 from legal_ai.database import get_session
+from legal_ai.interfaces import LLMClientInterface
 
 
 class RAG:
@@ -16,13 +17,15 @@ class RAG:
         self,
         generation_model: str,
         embedding_model: str,
+        llm_client: LLMClientInterface,
         top_k: int = 6,
     ) -> None:
         self.generation_model = generation_model
         self.embedding_model = embedding_model
         self.top_k = top_k
+        self.llm_client = llm_client
 
-    def _embed_query(self, query: str) -> list[float]:
+    async def _embed_query(self, query: str) -> list[float]:
         """Return user query embedding
 
         Args:
@@ -31,8 +34,8 @@ class RAG:
         Returns:
             list[float]: user query embedding
         """
-        embedding = ollama.embeddings(model=self.embedding_model, prompt=query)
-        return embedding["embedding"]
+        embedding = await self.llm_client.embeddings(model=self.embedding_model, prompt=query)
+        return embedding
 
     def _generate_hypothetical_answer(self, query: str) -> str:
         """Generate a hypothetical answer to the query using the LLM.
@@ -47,11 +50,11 @@ class RAG:
             "Réponds directement sans préambule, en une ou deux phrases.\n\n"
             f"Question : {query}"
         )
-        response = ollama.chat(
+        response = self.llm_client.chat(
             model=self.generation_model,
             messages=[{"role": "user", "content": prompt}],
         )
-        return response["message"]["content"]
+        return response
 
     def _retrieve_similar_chunks(
         self, query_embedding: list[float], similarity_threshold: float
@@ -93,7 +96,7 @@ class RAG:
             )
             return [dict(row) for row in rows]
 
-    def retrieve_similar_chunks(
+    async def retrieve_similar_chunks(
         self, query: str, similarity_threshold: float
     ) -> list[dict[str, Any]]:
         """
@@ -107,11 +110,11 @@ class RAG:
         Returns:
             list[dict[str, Any]]: list for dicts representing chunks
         """
-        query_embedding = self._embed_query(query)
+        query_embedding = await self._embed_query(query)
 
         # HyDE: generate a hypothetical answer and embed it
         hypothetical_answer = self._generate_hypothetical_answer(query)
-        hyde_embedding = self._embed_query(hypothetical_answer)
+        hyde_embedding = await self._embed_query(hypothetical_answer)
 
         # Retrieve chunks for both embeddings
         query_chunks = self._retrieve_similar_chunks(query_embedding, similarity_threshold)
@@ -156,7 +159,7 @@ class RAG:
         header = " > ".join(parts) if parts else "Source inconnue"
         return f"[{header}]\n{chunk['content']}"
 
-    def augment_query(self, user_query: str, chunks: list[str]) -> tuple[str, str]:
+    def _augment_query(self, user_query: str, chunks: list[str]) -> tuple[str, str]:
         """Build the augmented prompt with context and user question."""
         context = "\n\n---\n\n".join(chunks)
 
@@ -178,17 +181,9 @@ class RAG:
         )
         return system, user
 
-    def get_answer_from_llm(self, system: str, user: str) -> str:
-        """Query the LLM with the augmented prompt."""
-        response = ollama.chat(
-            model=self.generation_model,
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
-        )
-        return response["message"]["content"]
-
-    def ask(self, user_query: str, similarity_threshold: float) -> dict[str, Any]:
+    async def ask(self, user_query: str, similarity_threshold: float) -> dict[str, Any]:
         formatted_chunks: list[str] = []
-        chunks = self.retrieve_similar_chunks(user_query, similarity_threshold)
+        chunks = await self.retrieve_similar_chunks(user_query, similarity_threshold)
         if not chunks:
             return {
                 "answer": "Aucun document pertinent trouvé pour cette question.",
@@ -199,9 +194,12 @@ class RAG:
             formatted_chunk = self.format_chunk_for_prompt(chunk)
             formatted_chunks.append(formatted_chunk)
 
-        system, user = self.augment_query(user_query=user_query, chunks=formatted_chunks)
-        answer = self.get_answer_from_llm(system=system, user=user)
-        sources = []
+        system, user = self._augment_query(user_query=user_query, chunks=formatted_chunks)
+        answer = self.llm_client.chat(
+            model=self.generation_model,
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+        )
+        sources: list[dict[str, str | int | None]] = []
         for c in chunks:
             meta = c.get("metadata") or {}
             sources.append(

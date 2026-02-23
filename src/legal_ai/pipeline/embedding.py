@@ -12,11 +12,16 @@ from legal_ai.crawlers.sgg_heading_rules import fix_heading_hierarchy, HEADERS_T
 from sqlalchemy.dialects.postgresql import insert
 from legal_ai.repositories.document import DocumentChunkRepository
 from legal_ai.database import get_session
+from legal_ai.interfaces import EmbeddingServiceInterface, LLMClientInterface
 
 
-class DocumentEmbedding:
+class DocumentEmbedding(EmbeddingServiceInterface):
     def __init__(
-        self, embedding_model: str, chunk_size: int = 1500, chunk_overlap: int = 300
+        self,
+        embedding_model: str,
+        llm_client: LLMClientInterface,
+        chunk_size: int = 1500,
+        chunk_overlap: int = 300,
     ) -> None:
         self.document_chunk_repository = DocumentChunkRepository()
         self.embedding_model = embedding_model
@@ -28,7 +33,7 @@ class DocumentEmbedding:
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
         )
-        self.ollama_async_client = ollama.AsyncClient()
+        self.llm_client = llm_client
         self.semaphore = Semaphore(100)
 
     def _construct_enriched_content(self, chunk: LangchainDocument) -> str:
@@ -126,7 +131,9 @@ class DocumentEmbedding:
         for _, chunk in enumerate(chunks):
             # build an enriched chunk
             enriched_chunk = self._construct_enriched_content(chunk)
-            embedding_task = self.get_embedding(chunk=enriched_chunk)
+            embedding_task = self.llm_client.embeddings(
+                model=self.embedding_model, prompt=enriched_chunk
+            )
             embedding_tasks.append(run_with_semaphore(self.semaphore, embedding_task))
 
         results = await asyncio.gather(*embedding_tasks)
@@ -160,21 +167,6 @@ class DocumentEmbedding:
                 )
             )
         return document_chunks
-
-    async def get_embedding(self, chunk: str) -> list[float]:
-        """
-        Get embedding.
-
-        Args:
-            chunk (str):string representing a chunk of from a document
-
-        Returns:
-            list[float]: embedding for the given chunk
-        """
-        embedding = await self.ollama_async_client.embeddings(
-            model=self.embedding_model, prompt=chunk
-        )
-        return embedding["embedding"]
 
     async def split_and_insert_document_chunks(self, documents: list[Document]):
         """

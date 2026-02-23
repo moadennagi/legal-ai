@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 import aiohttp
 from legal_ai.models.schemas import TargetPayload
 from typing import Any
+from legal_ai.models.document import Document
 
 
 class CrawlerInterface(ABC):
@@ -39,4 +40,27 @@ class ConversionResultInterface(ABC):
 class DocumentConverterInterface(ABC):
     @abstractmethod
     def convert(self, file_path: str) -> ConversionResultInterface:
+        pass
+
+
+class LLMClientInterface(ABC):
+    @abstractmethod
+    async def embeddings(
+        self,
+        model: str,
+        prompt: str,
+    ) -> list[float]:
+        pass
+
+    @abstractmethod
+    def chat(self, model: str, messages: list[dict[str, str]]) -> str:
+        pass
+
+
+class EmbeddingServiceInterface(ABC):
+    def __init__(self, llm_client: LLMClientInterface) -> None:
+        self.llm_client = llm_client
+
+    @abstractmethod
+    async def split_and_insert_document_chunks(self, documents: list[Document]) -> None:
         pass
