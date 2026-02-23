@@ -3,6 +3,7 @@ import aiohttp
 from legal_ai.models.schemas import TargetPayload
 from typing import Any
 from legal_ai.models.document import Document
+from dataclasses import dataclass, field
 
 
 class CrawlerInterface(ABC):
@@ -43,6 +44,23 @@ class DocumentConverterInterface(ABC):
         pass
 
 
+@dataclass
+class ChunkResult:
+    page_content: str
+    metadata: dict[str, Any] = field(default_factory=dict)
+    id: str | None = None
+
+
+class DocumentSplitterInterface(ABC):
+    @abstractmethod
+    def split_document(self, document: Document) -> list[ChunkResult]:
+        pass
+
+    @abstractmethod
+    def construct_enriched_content(self, chunk: ChunkResult) -> str:
+        pass
+
+
 class LLMClientInterface(ABC):
     @abstractmethod
     async def embeddings(
@@ -62,5 +80,5 @@ class EmbeddingServiceInterface(ABC):
         self.llm_client = llm_client
 
     @abstractmethod
-    async def split_and_insert_document_chunks(self, documents: list[Document]) -> None:
+    async def split_and_insert_embeddings(self, documents: list[Document]) -> None:
         pass

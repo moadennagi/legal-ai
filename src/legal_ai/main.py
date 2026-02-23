@@ -11,6 +11,7 @@ if __name__ == "__main__":
     from legal_ai.repositories.document import DocumentRepository
     from legal_ai.pipeline.rag import RAG
     from legal_ai.adapters import DoclingDocumentConverterAdapter, OllamaLLMClientAdapter
+    from legal_ai.splitters import BODocumentSplitter
 
     setup_logging()
 
@@ -18,8 +19,11 @@ if __name__ == "__main__":
     document_repository = DocumentRepository()
     document_converter = DoclingDocumentConverterAdapter()
     ollama_client = OllamaLLMClientAdapter()
+    bo_document_splitter = BODocumentSplitter()
     document_processing = DocumentProcessing(document_converter=document_converter)
-    document_embedding = DocumentEmbedding(embedding_model="bge-m3", llm_client=ollama_client)
+    document_embedding = DocumentEmbedding(
+        embedding_model="bge-m3", llm_client=ollama_client, document_splitter=bo_document_splitter
+    )
     rag = RAG(embedding_model="bge-m3", generation_model="qwen2.5:7b", llm_client=ollama_client)
 
     async def ingest():
@@ -39,7 +43,7 @@ if __name__ == "__main__":
                 .where(DocumentChunk.id.is_(None))
             )
             documents = session.execute(stmt).scalars().all()
-            await document_embedding.split_and_insert_document_chunks(documents=documents)
+            await document_embedding.split_and_insert_embeddings(documents=documents)
 
     async def ask():
         while True:

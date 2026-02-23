@@ -1,5 +1,4 @@
 from typing import Any
-import ollama
 import re
 from sqlalchemy import text
 from legal_ai.database import get_session
