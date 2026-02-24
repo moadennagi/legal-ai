@@ -29,6 +29,10 @@ dev = [
 line-length = 100
 target-version = "py310"
 
+# Enable import sorting (isort rules)
+[lint.extend]
+select = ["I"]
+
 [tool.mypy]
 python_version = "3.10"
 warn_return_any = true

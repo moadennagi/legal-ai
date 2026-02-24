@@ -12,6 +12,9 @@ if __name__ == "__main__":
     from legal_ai.pipeline.rag import RAG
     from legal_ai.adapters import DoclingDocumentConverterAdapter, OllamaLLMClientAdapter
     from legal_ai.splitters import BODocumentSplitter
+    from legal_ai.settings import settings
+    from legal_ai.pipeline.conversation import ConversationManager
+    from legal_ai.pipeline.rag import RAG
 
     setup_logging()
 
@@ -20,11 +23,25 @@ if __name__ == "__main__":
     document_converter = DoclingDocumentConverterAdapter()
     ollama_client = OllamaLLMClientAdapter()
     bo_document_splitter = BODocumentSplitter()
+    rag_client = RAG(
+        generation_model=settings.generation_model,
+        embedding_model=settings.embeding_model,
+        llm_client=ollama_client,
+        document_splitter=bo_document_splitter,
+    )
+    conversation_manager = ConversationManager(llm_client=ollama_client, rag=rag_client)
     document_processing = DocumentProcessing(document_converter=document_converter)
     document_embedding = DocumentEmbedding(
-        embedding_model="bge-m3", llm_client=ollama_client, document_splitter=bo_document_splitter
+        embedding_model=settings.embeding_model,
+        llm_client=ollama_client,
+        document_splitter=bo_document_splitter,
     )
-    rag = RAG(embedding_model="bge-m3", generation_model="qwen2.5:7b", llm_client=ollama_client)
+    rag = RAG(
+        embedding_model=settings.embeding_model,
+        generation_model=settings.generation_model,
+        llm_client=ollama_client,
+        document_splitter=bo_document_splitter,
+    )
 
     async def ingest():
         crawler = SGGCrawler()
@@ -48,7 +65,7 @@ if __name__ == "__main__":
     async def ask():
         while True:
             q = input("Type a question: ")
-            res = await rag.ask(user_query=q, similarity_threshold=0.3)
+            res = await conversation_manager.ask(query=q, similarity_threshold=0.3)
             if q == "exit":
                 break
             print(res["answer"])

@@ -39,6 +39,7 @@ from legal_ai.models.document import Document
 from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 import re
 from legal_ai.interfaces import ChunkResult
+from typing import Any
 
 
 _ARTICLE_RE = re.compile(

@@ -2,10 +2,15 @@ from typing import Any
 import re
 from sqlalchemy import text
 from legal_ai.database import get_session
-from legal_ai.interfaces import LLMClientInterface
+from legal_ai.interfaces import (
+    LLMClientInterface,
+    DocumentSplitterInterface,
+    RAGInterface,
+    ChunkResult,
+)
 
 
-class RAG:
+class RAG(RAGInterface):
     # receive user query, and look for similar chunks (top k)
     # if chunks have the same similarity or close enough prefer chunks coming
     # form recent document
@@ -17,12 +22,14 @@ class RAG:
         generation_model: str,
         embedding_model: str,
         llm_client: LLMClientInterface,
+        document_splitter: DocumentSplitterInterface,
         top_k: int = 6,
     ) -> None:
         self.generation_model = generation_model
         self.embedding_model = embedding_model
         self.top_k = top_k
         self.llm_client = llm_client
+        self.document_splitter = document_splitter
 
     async def _embed_query(self, query: str) -> list[float]:
         """Return user query embedding
@@ -126,6 +133,8 @@ class RAG:
             if chunk_id not in seen or chunk["distance"] < seen[chunk_id]["distance"]:
                 seen[chunk_id] = chunk
 
+        # TODO: add reranking of documents
+
         # Sort by distance, then by recency
         def sort_key(c: dict[str, Any]) -> tuple[float, int]:
             d = c.get("official_date")
@@ -134,29 +143,6 @@ class RAG:
         merged = sorted(seen.values(), key=sort_key)
 
         return merged[: self.top_k]
-
-    def format_chunk_for_prompt(self, chunk: dict[str, Any]) -> str:
-        """Turn a chunk + its metadata into a context block for the LLM
-
-        Args:
-            chunk (dict[str, Any]): chunk
-
-        Returns:
-            str: formatted chunk
-        """
-        meta: dict[str, Any] = chunk.get("metadata") or {}
-
-        # Build a breadcrumb from whatever metadata keys exist
-        breadcrumb_keys = ["instrument", "partie", "titre", "chapitre", "section"]
-        parts: list[str] = []
-        for key in breadcrumb_keys:
-            if key in meta:
-                # Strip the markdown heading markers (##, ###, etc.)
-                clean = re.sub(r"^#+\s*", "", meta[key])
-                parts.append(clean)
-
-        header = " > ".join(parts) if parts else "Source inconnue"
-        return f"[{header}]\n{chunk['content']}"
 
     def _augment_query(self, user_query: str, chunks: list[str]) -> tuple[str, str]:
         """Build the augmented prompt with context and user question."""
@@ -180,7 +166,12 @@ class RAG:
         )
         return system, user
 
-    async def ask(self, user_query: str, similarity_threshold: float) -> dict[str, Any]:
+    async def ask(
+        self,
+        user_query: str,
+        similarity_threshold: float,
+        history: list[dict[str, str]],
+    ) -> dict[str, Any]:
         formatted_chunks: list[str] = []
         chunks = await self.retrieve_similar_chunks(user_query, similarity_threshold)
         if not chunks:
@@ -190,13 +181,21 @@ class RAG:
             }
         formatted_chunks: list[str] = []
         for chunk in chunks:
-            formatted_chunk = self.format_chunk_for_prompt(chunk)
+            chunk_result = ChunkResult(
+                id=chunk["id"], page_content=chunk["content"], metadata=chunk["metadata"]
+            )
+            formatted_chunk = self.document_splitter.construct_enriched_content(chunk_result)
             formatted_chunks.append(formatted_chunk)
 
         system, user = self._augment_query(user_query=user_query, chunks=formatted_chunks)
+        messages = [
+            {"role": "system", "content": system},
+            *history,
+            {"role": "user", "content": user},
+        ]
         answer = self.llm_client.chat(
             model=self.generation_model,
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+            messages=messages,
         )
         sources: list[dict[str, str | int | None]] = []
         for c in chunks:

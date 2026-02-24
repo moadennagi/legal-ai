@@ -82,3 +82,14 @@ class EmbeddingServiceInterface(ABC):
     @abstractmethod
     async def split_and_insert_embeddings(self, documents: list[Document]) -> None:
         pass
+
+
+class RAGInterface(ABC):
+    @abstractmethod
+    async def ask(
+        self,
+        user_query: str,
+        similarity_threshold: float,
+        history: list[dict[str, str]],
+    ) -> dict[str, Any]:
+        pass
