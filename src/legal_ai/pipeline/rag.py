@@ -1,5 +1,9 @@
 from typing import Any
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import logging
 import re
+from time import perf_counter
+import torch
 from sqlalchemy import text
 from legal_ai.database import get_session
 from legal_ai.interfaces import (
@@ -8,6 +12,9 @@ from legal_ai.interfaces import (
     RAGInterface,
     ChunkResult,
 )
+from legal_ai.settings import settings
+
+logger = logging.getLogger(__name__)
 
 
 class RAG(RAGInterface):
@@ -30,6 +37,10 @@ class RAG(RAGInterface):
         self.top_k = top_k
         self.llm_client = llm_client
         self.document_splitter = document_splitter
+        self.tokenizer = AutoTokenizer.from_pretrained(settings.reranking_model)
+        self.reranking_model = AutoModelForSequenceClassification.from_pretrained(
+            settings.reranking_model, num_labels=1
+        )
 
     async def _embed_query(self, query: str) -> list[float]:
         """Return user query embedding
@@ -100,10 +111,12 @@ class RAG(RAGInterface):
                 .mappings()
                 .all()
             )
+            if not rows:
+                logger.info("No chunks within threshold=%.2f. ", similarity_threshold)
             return [dict(row) for row in rows]
 
     async def retrieve_similar_chunks(
-        self, query: str, similarity_threshold: float
+        self, query: str, similarity_threshold: float, hyde: bool = False
     ) -> list[dict[str, Any]]:
         """
         Retrieve similar chunks, perform HyDE and return top_k
@@ -117,32 +130,49 @@ class RAG(RAGInterface):
             list[dict[str, Any]]: list for dicts representing chunks
         """
         query_embedding = await self._embed_query(query)
+        hyde_chunks: list[dict[str, Any]] = []
 
-        # HyDE: generate a hypothetical answer and embed it
-        hypothetical_answer = self._generate_hypothetical_answer(query)
-        hyde_embedding = await self._embed_query(hypothetical_answer)
+        if hyde:
+            a = perf_counter()
+            # HyDE: generate a hypothetical answer and embed it
+            hypothetical_answer = self._generate_hypothetical_answer(query)
+            hyde_embedding = await self._embed_query(hypothetical_answer)
+            hyde_chunks = self._retrieve_similar_chunks(hyde_embedding, similarity_threshold)
+            logger.info(f"Hyde in {perf_counter() - a}")
+
+        a = perf_counter()
 
         # Retrieve chunks for both embeddings
         query_chunks = self._retrieve_similar_chunks(query_embedding, similarity_threshold)
-        hyde_chunks = self._retrieve_similar_chunks(hyde_embedding, similarity_threshold)
+        logger.info(f"Similar chunks in {perf_counter() - a}")
+        # Reranking
+        a = perf_counter()
+        chunks = self._rerank(query=query, chunks=query_chunks + hyde_chunks)
+        logger.info(f"Reranking in {perf_counter() - a}")
 
-        # Merge and deduplicate: keep minimum distance per chunk id
-        seen: dict[int, dict[str, Any]] = {}
-        for chunk in query_chunks + hyde_chunks:
-            chunk_id = chunk["id"]
-            if chunk_id not in seen or chunk["distance"] < seen[chunk_id]["distance"]:
-                seen[chunk_id] = chunk
+        return chunks[: self.top_k]
 
-        # TODO: add reranking of documents
+    def _rerank(self, query: str, chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """
+        Rerank chunks using cross encoder.
 
-        # Sort by distance, then by recency
-        def sort_key(c: dict[str, Any]) -> tuple[float, int]:
-            d = c.get("official_date")
-            return (c["distance"], -(d.toordinal() if d else 0))
+        Args:
+            query (str): user query
+            chunks (list[dict[str, Any]]): chunks
+        """
+        if not chunks:
+            return chunks
 
-        merged = sorted(seen.values(), key=sort_key)
-
-        return merged[: self.top_k]
+        input_pairs = [[query, doc["content"]] for doc in chunks]
+        inputs = self.tokenizer(
+            input_pairs, padding=True, truncation=True, return_tensors="pt", max_length=512
+        )
+        with torch.no_grad():
+            outputs = self.reranking_model(**inputs)
+            scores = outputs.logits.squeeze(-1).tolist()
+        scored_documents = sorted(zip(scores, chunks), key=lambda x: x[0], reverse=True)
+        documents = [doc[1] for doc in scored_documents]
+        return documents
 
     def _augment_query(self, user_query: str, chunks: list[str]) -> tuple[str, str]:
         """Build the augmented prompt with context and user question."""
@@ -173,7 +203,9 @@ class RAG(RAGInterface):
         history: list[dict[str, str]],
     ) -> dict[str, Any]:
         formatted_chunks: list[str] = []
-        chunks = await self.retrieve_similar_chunks(user_query, similarity_threshold)
+        chunks = await self.retrieve_similar_chunks(
+            query=user_query, similarity_threshold=similarity_threshold
+        )
         if not chunks:
             return {
                 "answer": "Aucun document pertinent trouvé pour cette question.",
@@ -193,10 +225,12 @@ class RAG(RAGInterface):
             *history,
             {"role": "user", "content": user},
         ]
+        a = perf_counter()
         answer = self.llm_client.chat(
             model=self.generation_model,
             messages=messages,
         )
+        logger.info(f"LLM response in {perf_counter() - a}")
         sources: list[dict[str, str | int | None]] = []
         for c in chunks:
             meta = c.get("metadata") or {}

@@ -1,37 +1,3 @@
-"""
-Bulletin Officiel splitter.
-
-APPROACH: Hybrid — two kinds of headings, two strategies.
-
-1. KEYWORD HEADINGS (pattern-matched):
-   Headings that use FIXED legal vocabulary shared across ALL BO issues.
-   "Chapitre", "TITRE", "Article", "PREMIÈRE PARTIE", "Arrêté du..."
-   These are defined by Moroccan legal drafting conventions and won't change.
-   → Assign level directly from the keyword.
-
-2. FREE-TEXT HEADINGS (context-inferred):
-   Headings that could say anything — section titles in an Avis,
-   descriptive sub-chapter names, report topics, etc.
-   → Assign level based on position: one level below the last known
-     keyword heading above them, capped at 6.
-
-WHY THIS WORKS:
-   In a BO document, free-text headings always appear UNDER a structural
-   keyword heading. An Avis section title comes after "Avis du Conseil..."
-   (H2), so it becomes H3. A descriptive sub-chapter name comes after
-   "Chapitre premier" (H5), so it becomes H6. The structural keywords
-   act as anchors, and everything else flows relative to them.
-
-Hierarchy:
-    #      → DAHIR, TEXTES GENERAUX, TEXTES PARTICULIERS, AVIS ET COMMUNICATIONS
-    ##     → Dahir n°, Loi n°, Décret n°, Arrêté, Avis du Conseil...
-    ###    → PREMIÈRE PARTIE, roman numeral sections (I. II. III.)
-    ####   → TITRE PREMIER, numbered subsections (1. 2. 3.)
-    #####  → Chapitre premier, lettered subsections (a. b. c.)
-    ###### → free-text headings (inferred from context)
-    **bold** → Article / Art.
-"""
-
 from langchain_core.documents import Document as LangchainDocument
 
 from legal_ai.interfaces import DocumentSplitterInterface
@@ -39,23 +5,13 @@ from legal_ai.models.document import Document
 from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 import re
 from legal_ai.interfaces import ChunkResult
-from typing import Any
 
+_BOLD_LINE_RE = re.compile(r"^\*\*(.+)\*\*$")
 
 _ARTICLE_RE = re.compile(
-    r"^(?:Article|ARTICLE|Art\.?\s*)\s*(?:premier|PREMIER|\d+)",
+    r"^(?:Article|ARTICLE|Art\.?\s*|ART\.?\s*)\s*(?:premier|PREMIER|\d+)",
     re.IGNORECASE,
 )
-
-# ═══════════════════════════════════════════════════════════════════════
-# KEYWORD RULES — only for truly fixed legal vocabulary
-#
-# These are stable across ALL Bulletin Officiel issues because they
-# come from legal drafting conventions, not from document content.
-#
-# Rule: (level, pattern)
-# Evaluated top-to-bottom, first match wins.
-# ═══════════════════════════════════════════════════════════════════════
 
 _KEYWORD_RULES: list[tuple[int, re.Pattern]] = [
     # ── H1: top-level BO sections (always ALL-CAPS, always the same words) ──
@@ -70,7 +26,7 @@ _KEYWORD_RULES: list[tuple[int, re.Pattern]] = [
     (2, re.compile(r"^Loi\s+n[°º]", re.IGNORECASE)),
     (2, re.compile(r"^D[ée]cret\s+n[°º]", re.IGNORECASE)),
     (2, re.compile(r"^Arr[êe]t[ée]\s+", re.IGNORECASE)),
-    (2, re.compile(r"^D[ée]cision\s+", re.IGNORECASE)),
+    (2, re.compile(r"^D[ée]cisje ion\s+", re.IGNORECASE)),
     (2, re.compile(r"^Avis\s+(?:du|de\s+la|n[°º])\b", re.IGNORECASE)),
     (2, re.compile(r"^Nomination\s+", re.IGNORECASE)),
     (2, re.compile(r"^Homologation\s+", re.IGNORECASE)),
@@ -102,11 +58,11 @@ HEADERS_TO_SPLIT_ON = [
 ]
 
 
-class BODocumentSplitter(DocumentSplitterInterface):
+class MoroccanBulettinOfficielSplitter(DocumentSplitterInterface):
     def __init__(
         self,
-        chunk_size: int = 1500,
-        chunk_overlap: int = 300,
+        chunk_size: int = 3000,
+        chunk_overlap: int = 500,
     ) -> None:
         self.md_splitter = MarkdownHeaderTextSplitter(
             headers_to_split_on=HEADERS_TO_SPLIT_ON,
@@ -146,8 +102,37 @@ class BODocumentSplitter(DocumentSplitterInterface):
         """
         Post-process a Docling markdown string: reassign heading levels.
 
+        APPROACH: Hybrid — two kinds of headings, two strategies.
+
         Known keyword headings → level from the keyword rule.
         Free-text headings     → one level below the last known heading above.
+
+        1. KEYWORD HEADINGS (pattern-matched):
+        Headings that use FIXED legal vocabulary shared across ALL BO issues.
+        "Chapitre", "TITRE", "Article", "PREMIÈRE PARTIE", "Arrêté du..."
+        These are defined by Moroccan legal drafting conventions and won't change.
+        → Assign level directly from the keyword.
+
+        2. FREE-TEXT HEADINGS (context-inferred):
+        Headings that could say anything — section titles in an Avis,
+        descriptive sub-chapter names, report topics, etc.
+        → Assign level based on position: one level below the last known
+            keyword heading above them, capped at 6.
+
+        In a BO document, free-text headings always appear UNDER a structural
+        keyword heading. An Avis section title comes after "Avis du Conseil..."
+        (H2), so it becomes H3. A descriptive sub-chapter name comes after
+        "Chapitre premier" (H5), so it becomes H6. The structural keywords
+        act as anchors, and everything else flows relative to them.
+
+        Hierarchy:
+            #      → DAHIR, TEXTES GENERAUX, TEXTES PARTICULIERS, AVIS ET COMMUNICATIONS
+            ##     → Dahir n°, Loi n°, Décret n°, Arrêté, Avis du Conseil...
+            ###    → PREMIÈRE PARTIE, roman numeral sections (I. II. III.)
+            ####   → TITRE PREMIER, numbered subsections (1. 2. 3.)
+            #####  → Chapitre premier, lettered subsections (a. b. c.)
+            ###### → free-text headings (inferred from context)
+            **bold** → Article / Art.
 
         Example trace:
 
@@ -178,9 +163,20 @@ class BODocumentSplitter(DocumentSplitterInterface):
         for line in lines:
             # if its not a heading add to the lines
             m = _HEADING_RE.match(line)
+
             if not m:
+                bold_m = _BOLD_LINE_RE.match(line.strip())
+                if bold_m:
+                    text = bold_m.group(1).strip()
+                    level = self._classify(text)
+                    if level is not None and level != -1 and level <= 2:
+                        last_known_level = level
+                        out.append(f"{'#' * level} {text}")
+                        continue
+
                 out.append(line)
                 continue
+
             # it is a heading, we need to find its level
             text = m.group(2).strip()
             level = self._classify(text)
@@ -236,7 +232,7 @@ class BODocumentSplitter(DocumentSplitterInterface):
     def _filter_chunks(self, chunks: list[LangchainDocument]) -> list[LangchainDocument]:
         """
         Filter out bad chunks: empty, too short, table-of-contents,
-        and table-like formatting artifacts.
+        and table-like formatting artifacts that are not part of a hierarchy.
 
         Args:
             chunks (list[LangchainDocument]): a list of langchain documents
@@ -255,17 +251,19 @@ class BODocumentSplitter(DocumentSplitterInterface):
                 continue
 
             # skip very short chunks (headers, separators, etc.)
-            if len(content) < 50:
+            if len(content) < 20:
                 continue
-            # skip table-like formatting artifacts
-            if self._is_table_like(content):
+
+            # skip table-like formatting artifacts only if it has no legal hierarchy
+            if self._is_table_like(content) and not chunk.metadata.get("instrument"):
                 continue
+
             good_chunks.append(chunk)
         return good_chunks
 
     def construct_enriched_content(self, chunk: ChunkResult) -> str:
         """
-        Construct a string reprsenting the chunk with its context.
+        Construct a string representing the chunk with its context.
         (for contextual embedding)
 
         Args:
@@ -275,6 +273,9 @@ class BODocumentSplitter(DocumentSplitterInterface):
         breadcrumbs: list[str] = []
         if not chunk.metadata:
             return chunk.page_content
+
+        if not metadata_keys:
+            metadata_keys = [key for key in chunk.metadata]
 
         for key in metadata_keys:
             if key not in chunk.metadata:

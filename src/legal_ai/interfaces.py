@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import aiohttp
-from legal_ai.models.schemas import TargetPayload
+from legal_ai.models.schemas import TargetSchema
 from typing import Any
 from legal_ai.models.document import Document
 from dataclasses import dataclass, field
@@ -11,7 +11,7 @@ class CrawlerInterface(ABC):
     name: str
 
     @abstractmethod
-    async def crawl_and_return_targets(self, task_id: int) -> list[TargetPayload]:
+    async def crawl_and_return_targets(self, task_id: int) -> list[TargetSchema]:
         pass
 
 
@@ -21,26 +21,9 @@ class DownloaderInterface(ABC):
         pass
 
 
-class ConvertedDocument(ABC):
-    @abstractmethod
-    def export_to_markdown(self) -> str:
-        pass
-
-    @abstractmethod
-    def export_to_dict(self) -> dict[str, Any]:
-        pass
-
-
-class ConversionResultInterface(ABC):
-    @property
-    @abstractmethod
-    def document(self) -> ConvertedDocument:
-        pass
-
-
 class DocumentConverterInterface(ABC):
     @abstractmethod
-    def convert(self, file_path: str) -> ConversionResultInterface:
+    def convert(self, file_path: str) -> str:
         pass
 
 

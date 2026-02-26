@@ -16,6 +16,7 @@ dependencies = [
     "pydantic-settings>=2.13.0",
     "pytest>=9.0.2",
     "sqlalchemy>=2.0.46",
+    "transformers[torch]>=4.57.6",
 ]
 
 [dependency-groups]

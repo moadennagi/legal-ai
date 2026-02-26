@@ -1,8 +1,9 @@
 import logging
 import sys
+from legal_ai.settings import settings
 
 
-def setup_logging(level: int = logging.INFO):
+def setup_logging(level: int = settings.log_level):
     logging.basicConfig(
         level=level,
         format="%(asctime)s - %(name)s - %(levelname)s -%(message)s",

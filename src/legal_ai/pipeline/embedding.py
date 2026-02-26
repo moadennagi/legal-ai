@@ -20,13 +20,22 @@ class DocumentEmbedding(EmbeddingServiceInterface):
         self,
         embedding_model: str,
         llm_client: LLMClientInterface,
-        document_splitter: DocumentSplitterInterface,
+        document_splitters: dict[int, DocumentSplitterInterface],
     ) -> None:
         super().__init__(llm_client)
         self.document_chunk_repository = DocumentChunkRepository()
         self.embedding_model = embedding_model
-        self.document_splitter = document_splitter
+        self.document_splitters = document_splitters
         self.semaphore = Semaphore(100)
+
+    def _get_splitter(self, document: Document):
+        """
+        Return the right Document splitter according to document source_id.
+
+        Args:
+            document (Document): an instance of Document
+        """
+        return self.document_splitters.get(document.source_id)
 
     async def _embded_chunks(self, chunks: list[ChunkResult]) -> list[list[float]]:
         """
@@ -41,8 +50,10 @@ class DocumentEmbedding(EmbeddingServiceInterface):
         embedding_tasks: list[Coroutine[None, None, list[float]]] = []
         # gather all embedding tasks for a single document
         for _, chunk in enumerate(chunks):
-            # build an enriched chunk
+            # build an enriched chunk; strip surrogates that Docling may produce
+            # from malformed PDF text (e.g. \udcc3 from mis-decoded UTF-8 bytes)
             enriched_chunk = self.document_splitter.construct_enriched_content(chunk)
+            enriched_chunk = enriched_chunk.encode("utf-8", errors="surrogateescape").decode("utf-8")
             embedding_task = self.llm_client.embeddings(
                 model=self.embedding_model, prompt=enriched_chunk
             )
@@ -88,6 +99,10 @@ class DocumentEmbedding(EmbeddingServiceInterface):
         Args:
             documents (list[Document]): a list of Document instances
         """
+        self.document_splitter = self._get_splitter(documents[0])
+        if not self.document_splitter:
+            raise ValueError("Could not set document_splitter")
+
         document_chunks_dict_data: list[dict[str, Any]] = []
         with get_session() as session:
             for document in documents:

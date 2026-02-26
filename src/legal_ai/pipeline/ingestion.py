@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from legal_ai.database import get_session
 from legal_ai.interfaces import CrawlerInterface
 from legal_ai.models.document import Document, Target, TaskStatus
-from legal_ai.models.schemas import TargetPayload
+from legal_ai.models.schemas import TargetSchema, DocumentSchema
 from legal_ai.repositories.document import DocumentRepository
 from legal_ai.repositories.target import TargetRepository
 from legal_ai.repositories.source import SourceRepository
@@ -18,20 +18,23 @@ from legal_ai.repositories.task import TaskRepository
 from legal_ai.utils import run_with_semaphore
 from legal_ai.downloader import Downloader
 from legal_ai.settings import settings
+from legal_ai.interfaces import DocumentConverterInterface
 
 logger = logging.getLogger(__name__)
 
 
 class DataIngesion:
-    def __init__(self) -> None:
+    def __init__(self, document_converter: DocumentConverterInterface) -> None:
         self.target_repository = TargetRepository()
         self.document_repository = DocumentRepository()
         self.task_repository = TaskRepository()
         self.source_repository = SourceRepository()
         self.document_processor = DocumentProcessor()
         self.downloader = Downloader()
+        self.document_repository = DocumentRepository()
+        self.document_converter = document_converter
 
-    def _collect_targets(self, session: Session) -> list[TargetPayload]:
+    def _collect_targets(self, session: Session) -> list[TargetSchema]:
         """Return a list of TargetPayload instances
 
         Returns:
@@ -45,7 +48,7 @@ class DataIngesion:
         stmt = select(Target).where(Target.task_id.in_(task_ids))
         targets = session.execute(stmt).scalars().all()
         logger.info(f"Found {len(targets)} targets")
-        targets_payload: list[TargetPayload] = [
+        targets_payload: list[TargetSchema] = [
             self.target_repository.construct_target_payload_from_target(target)
             for target in targets
         ]
@@ -102,3 +105,34 @@ class DataIngesion:
             logger.info(f"Processing {len(coroutines)}")
             documents = await asyncio.gather(*coroutines, return_exceptions=True)
             return documents
+
+    def extract_text_from_documents(self, documents: list[DocumentSchema]):
+        """Extract text from documents and update them in the database
+
+        Args:
+            documents (list[Document]): list of documents
+        """
+        for document in documents:
+            with get_session() as session:
+                doc_id = document.id
+                try:
+                    content = self.document_converter.convert(file_path=document.file_path)
+                    self.document_repository.update_document_content(session, doc_id, content)
+                except Exception as e:
+                    session.rollback()
+                    logger.error(f"Failed to extract text from document {doc_id}: {e}")
+                    continue
+
+    def extract_text_from_documents_without_content(self):
+        """
+        Extract text from documents without text_content.
+        """
+        document_schemas: list[DocumentSchema] = []
+        with get_session() as session:
+            stmt = select(Document).where(Document.text_content.is_(None))
+            res = session.execute(stmt).scalars().all()
+            for row in res:
+                document_schemas.append(
+                    DocumentSchema(id=row.id, number=row.number, file_path=row.file_path)
+                )
+        self.extract_text_from_documents(documents=document_schemas)

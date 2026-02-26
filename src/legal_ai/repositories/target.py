@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from legal_ai.models.document import Target
-from legal_ai.models.schemas import TargetPayload
+from legal_ai.models.schemas import TargetSchema
 from legal_ai.repositories.source import SourceRepository
 
 
@@ -14,7 +14,7 @@ class TargetRepository:
     def __init__(self) -> None:
         self.source_store = SourceRepository()
 
-    def get_dict_data(self, object: TargetPayload) -> dict[str, Any]:
+    def get_dict_data(self, object: TargetSchema) -> dict[str, Any]:
         """Return a dict of TargetPayload (object) data"""
         columns_to_exclude = {
             "id",
@@ -26,8 +26,8 @@ class TargetRepository:
         }
         return data
 
-    def construct_target_payload_from_target(self, target: Target) -> TargetPayload:
-        target_payload = TargetPayload(
+    def construct_target_payload_from_target(self, target: Target) -> TargetSchema:
+        target_payload = TargetSchema(
             row_id=target.id,
             number=target.number,
             url=target.url,
@@ -39,14 +39,14 @@ class TargetRepository:
         )
         return target_payload
 
-    def set_source_id(self, session: Session, target: TargetPayload) -> TargetPayload:
+    def set_source_id(self, session: Session, target: TargetSchema) -> TargetSchema:
         source = self.source_store.get_or_create_source(
             session=session, source_name=target.source.name, source_url=target.source.url
         )
         target.source_id = source.id
         return target
 
-    def insert_targets(self, session: Session, targets_payload: list[TargetPayload]) -> int:
+    def insert_targets(self, session: Session, targets_payload: list[TargetSchema]) -> int:
         """Insert a list of Targets and return the count"""
         # transform basemodel to ORM
         targets_dicts: list[dict[str, Any]] = []

@@ -2,7 +2,7 @@ from bs4 import BeautifulSoup
 import aiohttp
 from urllib.parse import urljoin
 from typing import Any
-from legal_ai.models.schemas import TargetPayload, SourcePayload
+from legal_ai.models.schemas import TargetSchema, SourceSchema
 from legal_ai.interfaces import CrawlerInterface
 from legal_ai.utils import parse_ms_json_date
 
@@ -15,7 +15,7 @@ class SGGCrawler(CrawlerInterface):
 
     @property
     def source(self):
-        return SourcePayload(name=self.name, url=self.url)
+        return SourceSchema(name=self.name, url=self.url)
 
     async def _get_page_content(self) -> bytes | None:
         """Get page content and return a response."""
@@ -36,12 +36,12 @@ class SGGCrawler(CrawlerInterface):
             raise ValueError()
         return str(token.attrs["value"])
 
-    async def crawl_and_return_targets(self, task_id: int) -> list[TargetPayload]:
+    async def crawl_and_return_targets(self, task_id: int) -> list[TargetSchema]:
         """
         Get page content, parse target info and return a list of Target
         instances.
         """
-        targets: list[TargetPayload] = []
+        targets: list[TargetSchema] = []
         page_content = await self.get_page_content()
         if not page_content:
             raise ValueError()
@@ -62,7 +62,7 @@ class SGGCrawler(CrawlerInterface):
         for obj in json:
             url = urljoin(self.base_url, obj["BoUrl"])
             official_date = parse_ms_json_date(obj["BoDate"])
-            target = TargetPayload(
+            target = TargetSchema(
                 url=url,
                 number=obj["BoNum"],
                 source=self.source,

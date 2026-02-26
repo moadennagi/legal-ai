@@ -8,7 +8,7 @@ import aiohttp
 from legal_ai.database import get_session
 from legal_ai.interfaces import DownloaderInterface
 from legal_ai.models.document import Document
-from legal_ai.models.schemas import TargetPayload
+from legal_ai.models.schemas import TargetSchema
 from legal_ai.repositories.document import DocumentRepository
 from legal_ai.repositories.target import TargetRepository
 from legal_ai.settings import settings
@@ -46,7 +46,7 @@ class DocumentProcessor:
 
     async def download_target_content_and_insert_document(
         self,
-        target: TargetPayload,
+        target: TargetSchema,
         downloader: DownloaderInterface,
         document_repository: DocumentRepository,
         target_repository: TargetRepository,

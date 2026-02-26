@@ -6,12 +6,32 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from legal_ai.models.document import Document, DocumentChunk
-from legal_ai.models.schemas import TargetPayload
+from legal_ai.models.schemas import TargetSchema, DocumentSchema
 
 
 class DocumentRepository:
-    def construct_document_from_target_payload(self, target: TargetPayload) -> Document:
-        """Constructs an instance of Document from TargetPayload"""
+    def get_document_schema_from_document(self, document: Document) -> DocumentSchema:
+        """
+        Return a DocumentSchema instance constructed from Document.
+
+        Args:
+            document (Document): Document instance
+        """
+        document_schema = DocumentSchema(
+            id=document.id, number=document.number, file_path=document.file_path
+        )
+        return document_schema
+
+    def construct_document_from_target_payload(self, target: TargetSchema) -> Document:
+        """
+        Constructs an instance of Document from TargetPayload
+
+        Args:
+            target (TargetSchema): TargetSchema instance
+
+        Returns:
+            Document: Document instance
+        """
         document = Document(
             number=target.number,
             url=target.url,

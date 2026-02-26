@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from legal_ai.models.document import Task, TaskStatus, TaskType
 from datetime import datetime, timezone
 from sqlalchemy import select
-from legal_ai.models.schemas import TaskPayload
+from legal_ai.models.schemas import TaskSchema
 
 
 class TaskRepository:
@@ -23,7 +23,7 @@ class TaskRepository:
         tasks = session.execute(statement=stmt).scalars().all()
         return tasks
 
-    def create_downloading_task(self, task_payload: TaskPayload):
+    def create_downloading_task(self, task_payload: TaskSchema):
         task = Task(
             parent_id=task_payload.id,
             status=TaskStatus.in_progress,
