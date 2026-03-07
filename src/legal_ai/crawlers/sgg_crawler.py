@@ -42,10 +42,10 @@ class SGGCrawler(CrawlerInterface):
         instances.
         """
         targets: list[TargetSchema] = []
-        page_content = await self.get_page_content()
+        page_content = await self._get_page_content()
         if not page_content:
             raise ValueError()
-        token = self.extract_verification_token(page_content)
+        token = self._extract_verification_token(page_content)
         headers = {
             "X-Requested-With": "XMLHttpRequest",
             "ModuleId": "2873",

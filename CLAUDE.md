@@ -35,7 +35,8 @@ This is a **document ingestion and RAG pipeline** for Moroccan legal documents (
 - Extracted Markdown is stored in `Document.text_content`
 
 ### Phase 3: Embedding (`pipeline/embedding.py`)
-- `DocumentEmbedding` calls `BODocumentSplitter.split_document()` which internally runs `_fix_heading_hierarchy()` to enforce the Moroccan legal hierarchy, then chunks with `MarkdownHeaderTextSplitter` + `RecursiveCharacterTextSplitter` (chunk_size=1500, overlap=300)
+- `DocumentEmbedding` accepts `document_splitters: dict[int, DocumentSplitterInterface]` — keys are source IDs, enabling per-source splitter dispatch
+- Calls `splitter.split_document()` which internally runs `_fix_heading_hierarchy()` to enforce the Moroccan legal hierarchy, then chunks with `MarkdownHeaderTextSplitter` + `RecursiveCharacterTextSplitter` (chunk_size=1500, overlap=300)
 - Creates vectors via Ollama, stored in `document_chunks` with pgvector
 
 ### Phase 4: RAG (`pipeline/rag.py`)
@@ -47,8 +48,8 @@ This is a **document ingestion and RAG pipeline** for Moroccan legal documents (
 - `ConversationManager` wraps `RAG` and maintains a sliding-window history
 - When token count (approximated as `len(message) // 4`) exceeds 2000, it compresses the history by asking the LLM to summarize and keeping the last 4 messages
 
-### Splitter (`splitters/bo_splitter.py`)
-`BODocumentSplitter` implements `DocumentSplitterInterface` and contains the full heading normalization logic:
+### Splitter (`splitters/moroccan_bo_splitter.py`)
+`MoroccanBulettinOfficielSplitter` implements `DocumentSplitterInterface` and contains the full heading normalization logic:
 - **Keyword headings**: fixed legal vocabulary (DAHIR, Loi, Décret, Chapitre, etc.) → level assigned by `_KEYWORD_RULES`
 - **Free-text headings**: inferred one level below the last known keyword heading, capped at H6
 - **Articles**: converted to `**bold**` paragraphs (not headings)
@@ -105,3 +106,39 @@ RERANKING_MODEL=cross-encoder/ms-marco-MiniLM-L-6-v2
 ## Linting Configuration
 
 Ruff is configured in `pyproject.toml`: 100-char line length, Python 3.10+ target rules. Mypy uses Python 3.10, strict `warn_return_any`. Runtime requires Python 3.12+.
+
+## AI Usage Rules
+
+This project is a learning and portfolio project. Claude must enforce the following rules to protect skill development and interview readiness.
+
+### Write manually — Claude must NOT generate code for these
+
+- **Core RAG logic**: `_rerank`, `_generate_hypothetical_answer`, `retrieve_similar_chunks`, `_augment_query` and anything in `pipeline/rag.py`
+- **Splitter logic**: `_fix_heading_hierarchy`, `_classify`, `_filter_chunks` and anything in `splitters/`
+- **RAGAS evaluation module**: any new evaluation code — must be written by hand for thesis defense
+- **FRAT adapter / new splitters**: implementing `DocumentSplitterInterface` for new document types
+- **LeetCode**: never. No exceptions.
+- **TypeScript / Next.js frontend**: the point is to learn — generate explanations, not code
+
+When asked to write code in these categories, Claude must instead:
+1. Ask what the user has tried first
+2. Give a conceptual hint or pseudocode outline
+3. Point to the relevant existing code pattern in the codebase as a reference
+
+### Use AI immediately — boilerplate with no learning value
+
+- FastAPI app skeleton, route definitions, dependency injection setup
+- Dockerfile, docker-compose, GitHub Actions CI/CD
+- Pydantic schema classes (`AskRequest`, `AskResponse`, etc.)
+- Test files structure and mocked dependencies (`unittest.mock`, `TestClient`)
+- README sections, architecture diagrams in Mermaid
+- `.env.example`, `pyproject.toml` additions
+
+### The 20-minute rule
+
+If the user says they are stuck on something in the "write manually" category and have already tried for 20+ minutes, Claude may provide:
+- A targeted hint (not the full solution)
+- The specific line or concept that is wrong
+- A reference to the existing codebase pattern that solves it
+
+Claude must never silently generate the solution for "write manually" code even if the user asks directly. Always acknowledge the rule first: "This is in the write-manually category — here's a hint instead."

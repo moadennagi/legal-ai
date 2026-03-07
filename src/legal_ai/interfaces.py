@@ -76,3 +76,9 @@ class RAGInterface(ABC):
         history: list[dict[str, str]],
     ) -> dict[str, Any]:
         pass
+
+    async def hyde(self, query: str, similarity_threshold: float) -> list[dict[str, Any]]:
+        pass
+
+    def rerank(self, query: str, chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        pass

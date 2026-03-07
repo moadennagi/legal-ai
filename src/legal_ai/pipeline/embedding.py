@@ -37,7 +37,7 @@ class DocumentEmbedding(EmbeddingServiceInterface):
         """
         return self.document_splitters.get(document.source_id)
 
-    async def _embded_chunks(self, chunks: list[ChunkResult]) -> list[list[float]]:
+    async def embded_chunks(self, chunks: list[ChunkResult]) -> list[list[float]]:
         """
         Get embeddings to given chunks.
 
@@ -47,13 +47,18 @@ class DocumentEmbedding(EmbeddingServiceInterface):
         Returns:
             list[DocumentChunk]: list of embeddings
         """
+        if not self.document_splitter:
+            raise ValueError()
+
         embedding_tasks: list[Coroutine[None, None, list[float]]] = []
         # gather all embedding tasks for a single document
         for _, chunk in enumerate(chunks):
             # build an enriched chunk; strip surrogates that Docling may produce
             # from malformed PDF text (e.g. \udcc3 from mis-decoded UTF-8 bytes)
             enriched_chunk = self.document_splitter.construct_enriched_content(chunk)
-            enriched_chunk = enriched_chunk.encode("utf-8", errors="surrogateescape").decode("utf-8")
+            enriched_chunk = enriched_chunk.encode("utf-8", errors="surrogateescape").decode(
+                "utf-8"
+            )
             embedding_task = self.llm_client.embeddings(
                 model=self.embedding_model, prompt=enriched_chunk
             )
@@ -62,7 +67,7 @@ class DocumentEmbedding(EmbeddingServiceInterface):
         results = await asyncio.gather(*embedding_tasks)
         return results
 
-    def _construct_document_chunks(
+    def construct_document_chunks(
         self, document_id: int, chunks: list[ChunkResult], embeddings: list[list[float]]
     ) -> list[DocumentChunk]:
         """
@@ -107,9 +112,9 @@ class DocumentEmbedding(EmbeddingServiceInterface):
         with get_session() as session:
             for document in documents:
                 chunks = self.document_splitter.split_document(document)
-                embeddings = await self._embded_chunks(chunks)
+                embeddings = await self.embded_chunks(chunks)
 
-                document_chunks = self._construct_document_chunks(
+                document_chunks = self.construct_document_chunks(
                     document_id=document.id, chunks=chunks, embeddings=embeddings
                 )
                 document_chunks_dict_data = [

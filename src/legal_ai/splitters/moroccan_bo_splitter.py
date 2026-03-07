@@ -33,7 +33,6 @@ _KEYWORD_RULES: list[tuple[int, re.Pattern]] = [
     (2, re.compile(r"^[ÉE]quivalences?\s+de\s+", re.IGNORECASE)),
     # ── H3: parts (legal convention) ──
     (3, re.compile(r"\bPARTIE\b", re.IGNORECASE)),
-    (3, re.compile(r"^DISPOSITIONS?\s+G[ÉE]N[ÉE]RALES?$", re.IGNORECASE)),
     # Roman numeral sections: "I. Topic...", "IV. Défis..."
     (3, re.compile(r"^[IVXLC]+[\.\)]\s+")),
     # ── H4: titles (legal convention) ──
@@ -269,7 +268,7 @@ class MoroccanBulettinOfficielSplitter(DocumentSplitterInterface):
         Args:
             chunk (dict[str, Any]): a chunk as created by langchain text splitter
         """
-        metadata_keys = ["instrument", "partie", "titre", "chapitre", "section"]
+        metadata_keys = ["division", "instrument", "partie", "titre", "chapitre", "section"]
         breadcrumbs: list[str] = []
         if not chunk.metadata:
             return chunk.page_content

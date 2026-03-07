@@ -56,9 +56,10 @@ if __name__ == "__main__":
 
     async def ask():
         sys.stdin.reconfigure(encoding="utf-8")
+        print(f"Model = {settings.generation_model}")
         while True:
             q = input("Type a question: ")
-            res = await conversation_manager.ask(query=q, similarity_threshold=0.5)
+            res = await conversation_manager.ask(query=q, similarity_threshold=0.3)
             if q == "exit":
                 break
             print(res["answer"])
@@ -72,7 +73,7 @@ if __name__ == "__main__":
     asyncio.run(ask())
 
     async def test_document_index_table():
-        doc_number = "7462"
+        doc_number = "7480"
         stmt = select(Document).where(Document.number == doc_number)
         with get_session() as session:
             res = session.execute(stmt).fetchone()
@@ -83,3 +84,23 @@ if __name__ == "__main__":
             await document_embedding.split_and_insert_embeddings(documents=[doc])
 
     # asyncio.run(test_document_index_table())
+
+    # from unstructured.partition.pdf import partition_pdf
+
+    # filename = "/home/moadennagi/projects/legal-ai/data/7462.pdf"
+    # elements = partition_pdf(filename, language="french")
+    # print(elements)
+
+    async def debug_reranking():
+        x = 0.3
+        query = "quel est le statut de l'agence des medicaments ?"
+        query_embedding = await rag_client._embed_query(query=query)
+        similar_chunks = rag_client._retrieve_similar_chunks(
+            query_embedding=query_embedding, similarity_threshold=x
+        )
+        hyde_chunks = await rag_client.hyde(query=query, similarity_threshold=x)
+
+        all_chunks = hyde_chunks + similar_chunks
+        res = rag_client.rerank(query=query, chunks=all_chunks)
+
+    # asyncio.run(debug_reranking())
