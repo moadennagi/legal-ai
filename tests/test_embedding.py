@@ -47,7 +47,7 @@ def test_construct_document_chunks_returns_correct_count():
     chunks = [ChunkResult(page_content="a"), ChunkResult(page_content="b")]
     embeddings = [[0.1, 0.2], [0.3, 0.4]]
 
-    result = sut._construct_document_chunks(42, chunks, embeddings)
+    result = sut.construct_document_chunks(42, chunks, embeddings)
     assert len(result) == 2
 
 
@@ -56,7 +56,7 @@ def test_construct_document_chunks_maps_data_correctly():
     chunks = [ChunkResult(page_content="hello", metadata={"key": "val"})]
     embeddings = [[0.1, 0.2, 0.3]]
 
-    result = sut._construct_document_chunks(7, chunks, embeddings)
+    result = sut.construct_document_chunks(7, chunks, embeddings)
     chunk = result[0]
 
     assert isinstance(chunk, DocumentChunk)
@@ -72,7 +72,7 @@ def test_construct_document_chunks_indices_are_sequential():
     chunks = [ChunkResult(page_content=f"c{i}") for i in range(4)]
     embeddings = [[float(i)] for i in range(4)]
 
-    result = sut._construct_document_chunks(1, chunks, embeddings)
+    result = sut.construct_document_chunks(1, chunks, embeddings)
     indices = [c.chunk_index for c in result]
     assert indices == [0, 1, 2, 3]
 
@@ -90,7 +90,7 @@ async def test_embded_chunks_calls_llm_for_each_chunk():
     mock_llm.embeddings = AsyncMock(return_value=[0.1, 0.2])
 
     chunks = [ChunkResult(page_content="chunk1"), ChunkResult(page_content="chunk2")]
-    result = await sut._embded_chunks(chunks)
+    result = await sut.embded_chunks(chunks)
 
     assert len(result) == 2
     assert mock_llm.embeddings.await_count == 2
@@ -108,7 +108,7 @@ async def test_embded_chunks_returns_embeddings_in_order():
     mock_llm.embeddings = AsyncMock(side_effect=embeddings)
 
     chunks = [ChunkResult(page_content=f"chunk{i}") for i in range(3)]
-    result = await sut._embded_chunks(chunks)
+    result = await sut.embded_chunks(chunks)
 
     assert result == embeddings
 
