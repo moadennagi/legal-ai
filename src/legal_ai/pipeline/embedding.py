@@ -21,11 +21,13 @@ class DocumentEmbedding(EmbeddingServiceInterface):
         embedding_model: str,
         llm_client: LLMClientInterface,
         document_splitters: dict[int, DocumentSplitterInterface],
+        generation_model: str | None = None,
     ) -> None:
         super().__init__(llm_client)
         self.document_chunk_repository = DocumentChunkRepository()
         self.embedding_model = embedding_model
         self.document_splitters = document_splitters
+        self.generation_model = generation_model
         self.semaphore = Semaphore(100)
 
     def _get_splitter(self, document: Document):
@@ -36,6 +38,32 @@ class DocumentEmbedding(EmbeddingServiceInterface):
             document (Document): an instance of Document
         """
         return self.document_splitters.get(document.source_id)
+
+    async def _generate_chunk_context(self, document_text: str, chunk: ChunkResult) -> str:
+        messages = [
+            {
+                "role": "user",
+                "content": (
+                    f"<document>\n{document_text}\n</document>\n\n"
+                    f"Here is the chunk to situate:\n<chunk>\n{chunk.page_content}\n</chunk>\n\n"
+                    "Give a short context (1-2 sentences) situating this chunk within the document "
+                    "to improve search retrieval. Reply only with the context, nothing else."
+                ),
+            }
+        ]
+        return await self.llm_client.chat(model=self.generation_model, messages=messages)  # type: ignore[arg-type]
+
+    async def _contextualize_chunks(
+        self, document_text: str, chunks: list[ChunkResult]
+    ) -> list[ChunkResult]:
+        tasks = [
+            run_with_semaphore(self.semaphore, self._generate_chunk_context(document_text, chunk))
+            for chunk in chunks
+        ]
+        contexts = await asyncio.gather(*tasks)
+        for chunk, context in zip(chunks, contexts):
+            chunk.contextual_content = context
+        return chunks
 
     async def embded_chunks(self, chunks: list[ChunkResult]) -> list[list[float]]:
         """
@@ -56,6 +84,8 @@ class DocumentEmbedding(EmbeddingServiceInterface):
             # build an enriched chunk; strip surrogates that Docling may produce
             # from malformed PDF text (e.g. \udcc3 from mis-decoded UTF-8 bytes)
             enriched_chunk = self.document_splitter.construct_enriched_content(chunk)
+            if chunk.contextual_content:
+                enriched_chunk = chunk.contextual_content + "\n\n" + enriched_chunk
             enriched_chunk = enriched_chunk.encode("utf-8", errors="surrogateescape").decode(
                 "utf-8"
             )
@@ -102,8 +132,9 @@ class DocumentEmbedding(EmbeddingServiceInterface):
         into the database.
 
         Args:
-            documents (list[Document]): a list of Document instances
+            documents (list[Document]): a listo f Document instances
         """
+        # each source has a splitter
         self.document_splitter = self._get_splitter(documents[0])
         if not self.document_splitter:
             raise ValueError("Could not set document_splitter")
@@ -112,6 +143,9 @@ class DocumentEmbedding(EmbeddingServiceInterface):
         with get_session() as session:
             for document in documents:
                 chunks = self.document_splitter.split_document(document)
+                if self.generation_model and document.text_content:
+                    chunks = await self._contextualize_chunks(document.text_content, chunks)
+
                 embeddings = await self.embded_chunks(chunks)
 
                 document_chunks = self.construct_document_chunks(

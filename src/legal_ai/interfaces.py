@@ -4,6 +4,7 @@ from legal_ai.models.schemas import TargetSchema
 from typing import Any
 from legal_ai.models.document import Document
 from dataclasses import dataclass, field
+from legal_ai.models.schemas import SingleTurnSample
 
 
 class CrawlerInterface(ABC):
@@ -32,6 +33,7 @@ class ChunkResult:
     page_content: str
     metadata: dict[str, Any] = field(default_factory=dict)
     id: str | None = None
+    contextual_content: str | None = None
 
 
 class DocumentSplitterInterface(ABC):
@@ -54,7 +56,7 @@ class LLMClientInterface(ABC):
         pass
 
     @abstractmethod
-    def chat(self, model: str, messages: list[dict[str, str]]) -> str:
+    async def chat(self, model: str, messages: list[dict[str, str]]) -> str:
         pass
 
 
@@ -68,12 +70,28 @@ class EmbeddingServiceInterface(ABC):
 
 
 class RAGInterface(ABC):
+    def __init__(
+        self,
+        generation_model: str,
+        embedding_model: str,
+        llm_client: LLMClientInterface,
+        document_splitter: DocumentSplitterInterface,
+        top_k: int = 6,
+    ) -> None:
+        self.generation_model = generation_model
+        self.embedding_model = embedding_model
+        self.top_k = top_k
+        self.llm_client = llm_client
+        self.document_splitter = document_splitter
+        self.tokenizer = None
+        self.reranking_model = None
+
     @abstractmethod
     async def ask(
         self,
         user_query: str,
         similarity_threshold: float,
-        history: list[dict[str, str]],
+        history: list[dict[str, str]] | None,
     ) -> dict[str, Any]:
         pass
 
@@ -81,4 +99,22 @@ class RAGInterface(ABC):
         pass
 
     def rerank(self, query: str, chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        pass
+
+
+class RunnerInterface(ABC):
+    def __init__(self):
+        pass
+
+    @abstractmethod
+    async def run(
+        self,
+        rag: RAGInterface,
+        user_query: str,
+        similarity_threshold: float,
+        history: list[dict[str, str]],
+    ) -> SingleTurnSample:
+        """
+        Run Rag.ask() and return the response and the sources.
+        """
         pass

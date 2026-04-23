@@ -1,7 +1,8 @@
 import asyncio
+import gc
 import logging
 from typing import Coroutine
-
+from tqdm import tqdm
 import aiohttp
 from legal_ai.processors import DocumentProcessor
 from sqlalchemy import select
@@ -112,7 +113,7 @@ class DataIngesion:
         Args:
             documents (list[Document]): list of documents
         """
-        for document in documents:
+        for document in tqdm(documents, desc="Extracting text", unit="doc"):
             with get_session() as session:
                 doc_id = document.id
                 try:
@@ -122,6 +123,8 @@ class DataIngesion:
                     session.rollback()
                     logger.error(f"Failed to extract text from document {doc_id}: {e}")
                     continue
+                finally:
+                    gc.collect()
 
     def extract_text_from_documents_without_content(self):
         """

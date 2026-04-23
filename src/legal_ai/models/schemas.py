@@ -1,6 +1,8 @@
 from pydantic import BaseModel, Field
 from datetime import datetime, timezone, date
 from legal_ai.models.document import TaskStatus
+from dataclasses import dataclass
+from typing import Any
 
 
 class SourceSchema(BaseModel):
@@ -35,3 +37,10 @@ class DocumentSchema(BaseModel):
     number: str
     text_content: str | None = None
     file_path: str
+
+
+@dataclass
+class SingleTurnSample:
+    user_input: str
+    response: str
+    retrieved_contexts: list[dict[str, Any]]

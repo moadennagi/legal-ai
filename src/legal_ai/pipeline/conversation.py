@@ -2,6 +2,9 @@ from legal_ai.interfaces import LLMClientInterface, RAGInterface
 from legal_ai.settings import settings
 from typing import Any
 
+TOKEN_HISTORY_LIMIT = 2000
+TOKENS = 4
+
 
 class ConversationManager:
     def __init__(self, llm_client: LLMClientInterface, rag: RAGInterface):
@@ -23,9 +26,9 @@ class ConversationManager:
             dict[str, Any]: answer with sources
         """
         self.history.append({"role": "user", "content": query})
-        # TODO: 2000 is magic number
-        if self._count_tokens() >= 2000:
+        if self._count_tokens() >= TOKEN_HISTORY_LIMIT:
             self._compress()
+
         answer = await self.rag.ask(
             user_query=query,
             similarity_threshold=similarity_threshold,
@@ -46,8 +49,7 @@ class ConversationManager:
             for _, message in data.items():
                 if not message:
                     continue
-                # TODO: 4 is a magic number, make it configurable
-                res += len(message) // 4
+                res += len(message) // TOKENS
         return res
 
     def _compress(self):

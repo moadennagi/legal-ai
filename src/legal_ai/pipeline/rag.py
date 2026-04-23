@@ -1,4 +1,5 @@
-from typing import Any
+from typing import Any, Coroutine
+import asyncio
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import logging
 import re
@@ -32,6 +33,13 @@ class RAG(RAGInterface):
         document_splitter: DocumentSplitterInterface,
         top_k: int = 6,
     ) -> None:
+        super().__init__(
+            generation_model=generation_model,
+            embedding_model=embedding_model,
+            llm_client=llm_client,
+            document_splitter=document_splitter,
+            top_k=top_k,
+        )
         self.generation_model = generation_model
         self.embedding_model = embedding_model
         self.top_k = top_k
@@ -56,7 +64,7 @@ class RAG(RAGInterface):
         embedding = await self.llm_client.embeddings(model=self.embedding_model, prompt=query)
         return embedding
 
-    def _generate_hypothetical_answer(self, query: str) -> str:
+    async def _generate_hypothetical_answer(self, query: str) -> str:
         """Generate a hypothetical answer to the query using the LLM.
 
         This implements HyDE (Hypothetical Document Embedding) to bridge
@@ -69,7 +77,7 @@ class RAG(RAGInterface):
             "Réponds directement sans préambule, en une ou deux phrases.\n\n"
             f"Question : {query}"
         )
-        response = self.llm_client.chat(
+        response = await self.llm_client.chat(
             model=self.generation_model,
             messages=[{"role": "user", "content": prompt}],
         )
@@ -117,23 +125,6 @@ class RAG(RAGInterface):
                 logger.info("No chunks within threshold=%.2f. ", similarity_threshold)
             return [dict(row) for row in rows]
 
-    async def hyde(self, query: str, similarity_threshold: float) -> list[dict[str, Any]]:
-        """
-        Hyde: generate (LLM) a hypothethical answer to the query, retrieve similar
-        chunks to the query and returns them.
-
-        Args:
-            query (str): user query
-            similarity_threshold (float): similaarity threshold
-
-        Returns:
-            list[dict[str, Any]]: list of chunks similar to the hypothethical answer
-        """
-        hypothetical_answer = self._generate_hypothetical_answer(query)
-        hyde_embedding = await self._embed_query(hypothetical_answer)
-        hyde_chunks = self._retrieve_similar_chunks(hyde_embedding, similarity_threshold)
-        return hyde_chunks
-
     async def retrieve_similar_chunks(
         self, query: str, similarity_threshold: float, hyde: bool = True
     ) -> list[dict[str, Any]]:
@@ -148,25 +139,11 @@ class RAG(RAGInterface):
         Returns:
             list[dict[str, Any]]: list for dicts representing chunks
         """
+        query_embedding: list[float] = []
         query_embedding = await self._embed_query(query)
-        hyde_chunks: list[dict[str, Any]] = []
-
-        if hyde:
-            a = perf_counter()
-            # HyDE: generate a hypothetical answer and embed it
-            hyde_chunks = await self.hyde(query=query, similarity_threshold=similarity_threshold)
-            logger.info(f"Hyde in {perf_counter() - a}")
-
-        # TODO: remove all per counter
-        a = perf_counter()
 
         # Retrieve chunks for both embeddings
-        query_chunks = self._retrieve_similar_chunks(query_embedding, similarity_threshold)
-        logger.info(f"Similar chunks in {perf_counter() - a}")
-        # Reranking
-        a = perf_counter()
-        chunks = self.rerank(query=query, chunks=query_chunks + hyde_chunks)
-        logger.info(f"Reranking in {perf_counter() - a}")
+        chunks = self._retrieve_similar_chunks(query_embedding, similarity_threshold)
 
         return chunks[: self.top_k]
 
@@ -208,18 +185,58 @@ class RAG(RAGInterface):
             f"Question : {user_query}\n\n"
             "Réponds de manière structurée :\n"
             "1. Réponse directe à la question\n"
-            "2. Sources citées (instrument > article)\n"
-            "Si tu n'es pas certain à 100% que la réponse figure dans les extraits ci-dessus, commence ta réponse par : "
-            "'Cette information n'est pas disponible dans les documents fournis."
+            "2. Sources citées\n"
+            "Si la réponse n'est pas dans les extraits, dis uniquement : 'Information non disponible."
         )
         return system, user
+
+    async def _contextualize_question(self, user_query: str, history: list[dict[str, str]]) -> str:
+        """
+        Contextualize user query according to conversation's history.
+        """
+        if not history:
+            return user_query
+
+        history_text = "\n".join(f"{msg['role'].capitalize()}: {msg['content']}" for msg in history)
+        prompt = (
+            "Étant donné l'historique de conversation ci-dessous et une question de suivi, "
+            "reformule la question de suivi en une question autonome et complète, "
+            "compréhensible sans l'historique. "
+            "Si la question est déjà autonome, retourne-la telle quelle. "
+            "Réponds UNIQUEMENT avec la question reformulée, sans explication.\n\n"
+            f"Historique :\n{history_text}\n\n"
+            f"Question de suivi : {user_query}\n\n"
+            "Question reformulée :"
+        )
+        message = {"role": "user", "content": prompt}
+        response = await self.llm_client.chat(model=self.generation_model, messages=[message])
+        return response
+
+    def _get_unique_chunks(self, chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Return unique chunks by chunk.id
+
+        Args:
+            chunks (list[dict[str, Any]]): a list of chunks
+
+        Returns:
+            list[dict[str, Any]]: list of unique chunks
+        """
+        seen: set[str] = set()
+        unique_chunks: list[dict[str, Any]] = []
+        for chunk in chunks:
+            if chunk["id"] in seen:
+                continue
+            unique_chunks.append(chunk)
+            seen.add(chunk["id"])
+        return unique_chunks
 
     async def ask(
         self,
         user_query: str,
         similarity_threshold: float,
-        history: list[dict[str, str]],
-    ) -> dict[str, Any]:
+        history: list[dict[str, str]] | None = None,
+        hyde: bool = False,
+    ) -> dict[str, Any | list[dict[str, Any]]]:
         """
         Find similar chunks (cosine similarity), generate hypothetical answer and find similar
         chunks (HyDE), rerank chunks, augment the user query with chunks and generate and answer.
@@ -233,17 +250,57 @@ class RAG(RAGInterface):
             dict[str, Any]: answer dictionary
         """
         formatted_chunks: list[str] = []
+        embedding_tasks: list[Coroutine[None, None, list[dict[str, Any]]]] = []
+
+        hypothetical_answer = None
+        chunks_a, chunks_b = [], []
+        if not history:
+            history = []
+
+        # contextualize question according to conversation's history
+        contextualized_question = await self._contextualize_question(
+            user_query=user_query, history=history
+        )
+
+        if hyde:
+            hypothetical_answer = await self._generate_hypothetical_answer(contextualized_question)
+
         # retrieve similar chunks to the user query from vector database
         # generate a hypothetical answer and retrieve similar chunks
         # rerank chunks
-        chunks = await self.retrieve_similar_chunks(
-            query=user_query, similarity_threshold=similarity_threshold
+        embedding_tasks.append(
+            self.retrieve_similar_chunks(
+                query=contextualized_question, similarity_threshold=similarity_threshold
+            )
         )
+        if hypothetical_answer:
+            embedding_tasks.append(
+                self.retrieve_similar_chunks(
+                    query=hypothetical_answer, similarity_threshold=similarity_threshold
+                )
+            )
+
+            chunks_a, chunks_b = await asyncio.gather(*embedding_tasks)
+        else:
+            (chunks_a,) = await asyncio.gather(*embedding_tasks)
+
+        chunks = chunks_a + chunks_b
+
         if not chunks:
             return {
                 "answer": "Aucun document pertinent trouvé pour cette question.",
                 "sources": [],
             }
+
+        # chunk a and b could potentially have duplicates
+        unique_chunks = self._get_unique_chunks(chunks=chunks)
+
+        # Reranking
+        a = perf_counter()
+        chunks = self.rerank(query=contextualized_question, chunks=unique_chunks)
+        chunks = chunks[: self.top_k]
+        logger.info(f"Reranking in {perf_counter() - a}")
+
         formatted_chunks: list[str] = []
         # add metadata to chunks: metadata contain the chunk instrument (loi, decret ...)
         for chunk in chunks:
@@ -262,20 +319,18 @@ class RAG(RAGInterface):
         ]
         # TODO: remove counter
         a = perf_counter()
-        answer = self.llm_client.chat(
+        answer = await self.llm_client.chat(
             model=self.generation_model,
             messages=messages,
         )
         logger.info(f"LLM response in {perf_counter() - a}")
-        sources: list[dict[str, str | int | None]] = []
+        sources: list[dict[str, Any | list[dict[str, Any]]]] = []
         for c in chunks:
-            meta = c.get("metadata") or {}
             sources.append(
                 {
                     "document_number": c.get("document_number"),
                     "official_date": str(c.get("official_date", "")),
-                    "instrument": re.sub(r"^#+\s*", "", meta.get("instrument", "")),
-                    "distance": round(c.get("distance", 0), 4),
                 }
             )
-        return {"answer": answer, "sources": sources}
+        # TODO: make a dataclass in models.schemas
+        return {"answer": answer, "sources": sources, "contexts": chunks}

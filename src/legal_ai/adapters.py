@@ -14,6 +14,8 @@ class DoclingDocumentConverterAdapter(DocumentConverterInterface):
 
     def __init__(self):
         options = PdfPipelineOptions()
+        options.do_table_structure = False
+        options.do_ocr = False
         self.converter = DocumentConverter(
             format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=options)}
         )
@@ -33,6 +35,6 @@ class OllamaLLMClientAdapter(LLMClientInterface):
         embedding = response["embedding"]
         return embedding
 
-    def chat(self, model: str, messages: list[dict[str, str]]) -> str:
-        response = ollama.chat(model=model, messages=messages)
+    async def chat(self, model: str, messages: list[dict[str, str]]) -> str:
+        response = await self.async_client.chat(model=model, messages=messages)
         return response["message"]["content"]

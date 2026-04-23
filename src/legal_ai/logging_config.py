@@ -9,6 +9,8 @@ def setup_logging(level: int = settings.log_level):
         format="%(asctime)s - %(name)s - %(levelname)s -%(message)s",
         handlers=[logging.StreamHandler(sys.stdout), logging.FileHandler("pipeline.log")],
     )
+    logging.getLogger("docling").setLevel(logging.WARNING)
+    logging.getLogger("docling_core").setLevel(logging.WARNING)
 
 
 setup_logging()

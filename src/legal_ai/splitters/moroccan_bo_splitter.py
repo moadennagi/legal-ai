@@ -164,6 +164,13 @@ class MoroccanBulettinOfficielSplitter(DocumentSplitterInterface):
             m = _HEADING_RE.match(line)
 
             if not m:
+                level = self._classify(line)
+                # some instrument show as plain text
+                if level == 2:
+                    out.append(f"{'#' * level} {line}")
+                    last_known_level = level
+                    continue
+
                 bold_m = _BOLD_LINE_RE.match(line.strip())
                 if bold_m:
                     text = bold_m.group(1).strip()

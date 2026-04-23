@@ -37,17 +37,15 @@ async def chat(req: ChatRequest) -> dict[str, Any]:
     conversation_manager.history = [
         {"role": m.role, "content": m.content} for m in req.messages[:-1]
     ]
-    res = await conversation_manager.ask(user_query, similarity_threshold=0.3)
-    sources_md = "\n\n---\n**Sources:**\n" + "\n".join(
-        f"- {s['instrument']}" for s in res["sources"]
-    )
+    res = await conversation_manager.ask(user_query, similarity_threshold=0.55)
+    message: dict[str, str] = {"role": "assistant", "content": res["answer"]}
     return {
         "id": "chatcmpl-1",
         "object": "chat.completion",
         "choices": [
             {
                 "index": 0,
-                "message": {"role": "assistant", "content": res["answer"] + sources_md},
+                "message": message,
                 "finish_reason": "stop",
             }
         ],
