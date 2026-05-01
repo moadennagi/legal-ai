@@ -116,6 +116,7 @@ This project is a learning and portfolio project. Claude must enforce the follow
 - **Core RAG logic**: `_rerank`, `_generate_hypothetical_answer`, `retrieve_similar_chunks`, `_augment_query` and anything in `pipeline/rag.py`
 - **Splitter logic**: `_fix_heading_hierarchy`, `_classify`, `_filter_chunks` and anything in `splitters/`
 - **RAGAS evaluation module**: any new evaluation code — must be written by hand for thesis defense
+  - Includes `QASyntheticGenerator` (`evaluation/qa_generator.py`): the LLM used to generate Q&A pairs must be **different from `qwen2.5:7b`** (the pipeline's generation model) to avoid circular evaluation bias. Generated pairs must be human-reviewed before inclusion in the eval dataset. This methodological constraint must be documented in thesis section 3.6.
 - **FRAT adapter / new splitters**: implementing `DocumentSplitterInterface` for new document types
 - **LeetCode**: never. No exceptions.
 - **TypeScript / Next.js frontend**: the point is to learn — generate explanations, not code

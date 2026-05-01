@@ -38,7 +38,7 @@ async def chat(req: ChatRequest) -> dict[str, Any]:
         {"role": m.role, "content": m.content} for m in req.messages[:-1]
     ]
     res = await conversation_manager.ask(user_query, similarity_threshold=0.55)
-    message: dict[str, str] = {"role": "assistant", "content": res["answer"]}
+    message: dict[str, str] = {"role": "assistant", "content": res.answer}
     return {
         "id": "chatcmpl-1",
         "object": "chat.completion",

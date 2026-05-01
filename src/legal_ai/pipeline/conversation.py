@@ -1,6 +1,7 @@
 from legal_ai.interfaces import LLMClientInterface, RAGInterface
 from legal_ai.settings import settings
 from typing import Any
+from legal_ai.models.schemas import ResponseWithContext
 
 TOKEN_HISTORY_LIMIT = 2000
 TOKENS = 4
@@ -12,7 +13,7 @@ class ConversationManager:
         self.llm_client = llm_client
         self.rag = rag
 
-    async def ask(self, query: str, similarity_threshold: float) -> dict[str, Any]:
+    async def ask(self, query: str, similarity_threshold: float) -> ResponseWithContext:
         """
         Update conversation history with user quer and llm answer, manage history token
         limit by sliding window of summary + last for messages. the conversation
@@ -34,7 +35,7 @@ class ConversationManager:
             similarity_threshold=similarity_threshold,
             history=self.history[:-1],  # in order to not sent the user query twice
         )
-        self.history.append({"role": "assistant", "content": answer["answer"]})
+        self.history.append({"role": "assistant", "content": answer.answer})
         return answer
 
     def _count_tokens(self) -> int:

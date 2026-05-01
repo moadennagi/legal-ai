@@ -1,79 +1,55 @@
-from ragas.metrics import DiscreteMetric
-from ragas import experiment
-from ragas.llms import llm_factory
-from legal_ai.interfaces import RAGInterface, RunnerInterface
-from typing import Any
-from legal_ai.adapters import OllamaLLMClientAdapter
-
-ollama_client = OllamaLLMClientAdapter()
-correctness_metric = DiscreteMetric(
-    name="correctness",
-    prompt="""Compare the model response to the expected answer and determine if it's correct.
-
-        Consider the response correct if it:
-        1. Contains the key information from the expected answer
-        2. Is factually accurate based on the provided context
-        3. Adequately addresses the question asked
-
-        Return 'pass' if the response is correct, 'fail' if it's incorrect.
-
-        Question: {question}
-        Expected Answer: {expected_answer}
-        Model Response: {response}
-
-        Evaluation:
-        """,
-    allowed_values=["pass", "fail"],
-)
+from ragas import evaluate, SingleTurnSample, EvaluationDataset, MultiTurnSample
+from ragas.evaluation import EvaluationResult
+from ragas.metrics import context_precision, context_recall, faithfulness, answer_relevancy
+from legal_ai.interfaces import RAGInterface
+from ragas.llms import LangchainLLMWrapper
+from ragas.embeddings import LangchainEmbeddingsWrapper
+from legal_ai.settings import settings
+from legal_ai.models.schemas import EvaluationDatasetRow
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 
 class RagasEvaluation:
-    def __init__(self, rag_client: RAGInterface, generation_model: str, runner: RunnerInterface):
-        self.rag_client = rag_client
-        self.generation_model = generation_model
-        self.runner = runner
+    def __init__(self, llm_as_judge: str):
+        self.llm_as_judge = llm_as_judge
 
-    @experiment()
-    async def run_experiment(
+    async def evaluate_response(
         self,
         rag: RAGInterface,
-        row: dict[str, Any],
-        metric: DiscreteMetric,
+        rows: list[EvaluationDatasetRow],
         similarity_threshold: float,
-    ) -> dict[str, Any]:
-        """Run experiment and return a result.
-
-        Args:
-            rag (RAGInterface): _description_
-            row (dict[str, Any]): _description_
-            metric (DiscreteMetric): _description_
-
-        Returns:
-            dict[str, Any]: _description_
-        """
-        response_sample = await self.runner.run(
-            rag=rag,
-            user_query=row["question"],
-            similarity_threshold=similarity_threshold,
-            history=[],
+        hyde: bool = False,
+        rerank: bool = False,
+        contextualize_query: bool = False,
+    ) -> EvaluationResult:
+        """Évalue le pipeline RAG sur un dataset annoté et retourne les métriques RAGAS."""
+        samples: list[SingleTurnSample | MultiTurnSample] = []
+        for row in rows:
+            response = await rag.ask(
+                user_query=row.question,
+                similarity_threshold=similarity_threshold,
+                history=[],
+                hyde=hyde,
+                rerank=rerank,
+                contextualize_query=contextualize_query,
+            )
+            contexts = [chunk["content"] for chunk in response.context]
+            sample_turn = SingleTurnSample(
+                user_input=row.question,
+                retrieved_contexts=contexts,
+                response=response.answer,
+                reference=row.ground_truth,
+            )
+            samples.append(sample_turn)
+        evalaution_dataset = EvaluationDataset(samples=samples)
+        api_key = settings.openai_api_key
+        llm = LangchainLLMWrapper(ChatOpenAI(model=self.llm_as_judge, api_key=api_key))
+        embeddings = LangchainEmbeddingsWrapper(OpenAIEmbeddings(api_key=api_key))
+        result = evaluate(
+            dataset=evalaution_dataset,
+            metrics=[context_precision, context_recall, faithfulness, answer_relevancy],
+            llm=llm,
+            embeddings=embeddings,
         )
 
-        res = await metric.ascore(
-            question=row["question"],
-            expected_answer=row["answer"],
-            response=response_sample.response,
-            llm=llm_factory(model=rag.generation_model, client=ollama_client),
-        )
-
-        return {
-            **row,
-            "model_response": response_sample.response,
-            "evaluation_type": metric.name,
-            "evaluation_score": res.value,
-            "evaluation_reason": res.reason,
-            "retrieved_documents": [
-                doc.get("content", "")[:200] + "..."
-                for doc in response_sample.retrieved_contexts
-                if doc.get("content")
-            ],
-        }
+        return result

@@ -4,7 +4,7 @@ from legal_ai.models.schemas import TargetSchema
 from typing import Any
 from legal_ai.models.document import Document
 from dataclasses import dataclass, field
-from legal_ai.models.schemas import SingleTurnSample
+from legal_ai.models.schemas import ResponseWithContext
 
 
 class CrawlerInterface(ABC):
@@ -92,29 +92,14 @@ class RAGInterface(ABC):
         user_query: str,
         similarity_threshold: float,
         history: list[dict[str, str]] | None,
-    ) -> dict[str, Any]:
+        hyde: bool = False,
+        rerank: bool = True,
+        contextualize_query: bool = True,
+    ) -> ResponseWithContext:
         pass
 
     async def hyde(self, query: str, similarity_threshold: float) -> list[dict[str, Any]]:
         pass
 
     def rerank(self, query: str, chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        pass
-
-
-class RunnerInterface(ABC):
-    def __init__(self):
-        pass
-
-    @abstractmethod
-    async def run(
-        self,
-        rag: RAGInterface,
-        user_query: str,
-        similarity_threshold: float,
-        history: list[dict[str, str]],
-    ) -> SingleTurnSample:
-        """
-        Run Rag.ask() and return the response and the sources.
-        """
         pass

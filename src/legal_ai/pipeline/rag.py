@@ -13,6 +13,7 @@ from legal_ai.interfaces import (
     RAGInterface,
     ChunkResult,
 )
+from legal_ai.models.schemas import ResponseWithContext
 from legal_ai.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -236,7 +237,9 @@ class RAG(RAGInterface):
         similarity_threshold: float,
         history: list[dict[str, str]] | None = None,
         hyde: bool = False,
-    ) -> dict[str, Any | list[dict[str, Any]]]:
+        rerank: bool = True,
+        contextualize_query: bool = True,
+    ) -> ResponseWithContext:
         """
         Find similar chunks (cosine similarity), generate hypothetical answer and find similar
         chunks (HyDE), rerank chunks, augment the user query with chunks and generate and answer.
@@ -257,10 +260,12 @@ class RAG(RAGInterface):
         if not history:
             history = []
 
-        # contextualize question according to conversation's history
-        contextualized_question = await self._contextualize_question(
-            user_query=user_query, history=history
-        )
+        contextualized_question = user_query
+        if contextualize_query:
+            # contextualize question according to conversation's history
+            contextualized_question = await self._contextualize_question(
+                user_query=user_query, history=history
+            )
 
         if hyde:
             hypothetical_answer = await self._generate_hypothetical_answer(contextualized_question)
@@ -287,19 +292,22 @@ class RAG(RAGInterface):
         chunks = chunks_a + chunks_b
 
         if not chunks:
-            return {
-                "answer": "Aucun document pertinent trouvé pour cette question.",
-                "sources": [],
-            }
+            res = ResponseWithContext(
+                answer="Aucun document pertinent trouvé pour cette question.",
+                sources=[],
+                context=[],
+            )
+            return res
 
         # chunk a and b could potentially have duplicates
         unique_chunks = self._get_unique_chunks(chunks=chunks)
 
         # Reranking
-        a = perf_counter()
-        chunks = self.rerank(query=contextualized_question, chunks=unique_chunks)
-        chunks = chunks[: self.top_k]
-        logger.info(f"Reranking in {perf_counter() - a}")
+        if rerank:
+            a = perf_counter()
+            chunks = self.rerank(query=contextualized_question, chunks=unique_chunks)
+            chunks = chunks[: self.top_k]
+            logger.info(f"Reranking in {perf_counter() - a}")
 
         formatted_chunks: list[str] = []
         # add metadata to chunks: metadata contain the chunk instrument (loi, decret ...)
@@ -324,7 +332,7 @@ class RAG(RAGInterface):
             messages=messages,
         )
         logger.info(f"LLM response in {perf_counter() - a}")
-        sources: list[dict[str, Any | list[dict[str, Any]]]] = []
+        sources: list[dict[str, str | None]] = []
         for c in chunks:
             sources.append(
                 {
@@ -333,4 +341,5 @@ class RAG(RAGInterface):
                 }
             )
         # TODO: make a dataclass in models.schemas
-        return {"answer": answer, "sources": sources, "contexts": chunks}
+        response_with_context = ResponseWithContext(answer=answer, context=chunks, sources=sources)
+        return response_with_context

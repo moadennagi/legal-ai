@@ -3,6 +3,7 @@ from legal_ai.interfaces import (
     LLMClientInterface,
 )
 import ollama
+from openai import AsyncOpenAI
 from docling.document_converter import DocumentConverter, InputFormat, PdfFormatOption
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling_core.types.doc.labels import DocItemLabel
@@ -24,6 +25,18 @@ class DoclingDocumentConverterAdapter(DocumentConverterInterface):
         doc = self.converter.convert(file_path)
         result = doc.document.export_to_markdown(labels=self._EXPORT_LABELS)
         return result
+
+
+class OpenAILLMClientAdapter(LLMClientInterface):
+    def __init__(self, api_key: str) -> None:
+        self.client = AsyncOpenAI(api_key=api_key)
+
+    async def embeddings(self, model: str, prompt: str) -> list[float]:
+        raise NotImplementedError("OpenAILLMClientAdapter does not support embeddings")
+
+    async def chat(self, model: str, messages: list[dict[str, str]]) -> str:
+        response = await self.client.chat.completions.create(model=model, messages=messages)  # type: ignore[arg-type]
+        return response.choices[0].message.content or ""
 
 
 class OllamaLLMClientAdapter(LLMClientInterface):

@@ -3,6 +3,7 @@ from datetime import date
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from pgvector.sqlalchemy import Vector
 from sqlalchemy.dialects.postgresql import JSONB
+from typing import Any
 
 from enum import Enum
 
@@ -68,7 +69,7 @@ class DocumentChunk(Base):
     chunk_index: Mapped[int]
     embedding: Mapped[Vector | None] = mapped_column(Vector(1024), nullable=True)
 
-    chunk_metadata: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
+    chunk_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB, nullable=True)
 
     created_at: Mapped[int]
     updated_at: Mapped[int | None] = mapped_column(nullable=True)

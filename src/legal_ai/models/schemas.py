@@ -1,8 +1,8 @@
+from dataclasses import dataclass
 from pydantic import BaseModel, Field
 from datetime import datetime, timezone, date
-from legal_ai.models.document import TaskStatus
-from dataclasses import dataclass
 from typing import Any
+from legal_ai.models.document import TaskStatus
 
 
 class SourceSchema(BaseModel):
@@ -28,7 +28,8 @@ class TargetSchema(BaseModel):
     claimed_at: int | None = None
     updated_at: int | None = None
     created_at: int = Field(default_factory=lambda: int(datetime.now(tz=timezone.utc).timestamp()))
-    # TODO: add validation rules (URL scheme, number format) if needed
+    # TODO: add validation rules (URL s
+    # heme, number format) if needed
     source: SourceSchema | None = None
 
 
@@ -39,8 +40,13 @@ class DocumentSchema(BaseModel):
     file_path: str
 
 
+class ResponseWithContext(BaseModel):
+    answer: str
+    context: list[dict[str, Any]]
+    sources: list[dict[str, str | None]]
+
+
 @dataclass
-class SingleTurnSample:
-    user_input: str
-    response: str
-    retrieved_contexts: list[dict[str, Any]]
+class EvaluationDatasetRow:
+    question: str
+    ground_truth: str
