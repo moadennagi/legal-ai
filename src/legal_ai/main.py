@@ -1,5 +1,6 @@
 import asyncio
 import sys
+from pathlib import Path
 import ollama
 from sqlalchemy import text
 from legal_ai.pipeline.ingestion import DataIngesion
@@ -25,6 +26,7 @@ from legal_ai.evaluation.utils import export_ragas_seed_csv
 from legal_ai.evaluation.qa_generator import QASyntheticGenerator
 from legal_ai.evaluation.ragas import RagasEvaluation
 from legal_ai.evaluation.utils import load_eval_dataset
+from legal_ai.utils import sanitize_model_name
 import json
 
 if __name__ == "__main__":
@@ -32,14 +34,49 @@ if __name__ == "__main__":
 
     ollama_client = OllamaLLMClientAdapter()
     bo_document_splitter = MoroccanBulettinOfficielSplitter()
+    document_repository = DocumentRepository()
+    document_converter = DoclingDocumentConverterAdapter()
+    data_ingestion = DataIngesion(document_converter=document_converter)
 
-    async def run_evaluation(hyde: bool, rerank: bool, contextualize_query: bool):
+    generic_splitter = GenericSplitter()
+    rag_client = RAG(
+        generation_model=settings.generation_model,
+        embedding_model=settings.embeding_model,
+        llm_client=ollama_client,
+        document_splitter=bo_document_splitter,
+    )
+    conversation_manager = ConversationManager(llm_client=ollama_client, rag=rag_client)
+    document_embedding = DocumentEmbedding(
+        embedding_model=settings.embeding_model,
+        llm_client=ollama_client,
+        document_splitters={4: bo_document_splitter},
+        generation_model=settings.generation_model,
+    )
+
+    async def create_document_chunks_with_embeddings():
+        with get_session() as session:
+            stmt = (
+                select(Document)
+                .outerjoin(DocumentChunk, Document.id == DocumentChunk.document_id)
+                .where(DocumentChunk.id.is_(None))
+            )
+            documents = session.execute(stmt).scalars().all()
+            await document_embedding.split_and_insert_embeddings(documents=documents)
+
+    async def run_evaluation(
+        rag: RAG,
+        embedding_model: str,
+        generation_model: str,
+        hyde: bool,
+        rerank: bool,
+        contextualize_query: bool,
+    ):
         judge_model = "gpt-4o-mini"
         similarity_threshold = 0.5
         ragas_evaluation = RagasEvaluation(llm_as_judge=judge_model)
         rows = load_eval_dataset("data/evals/ragas_eval_dataset.csv")
         result = await ragas_evaluation.evaluate_response(
-            rag=rag_client,
+            rag=rag,
             rows=rows,
             similarity_threshold=similarity_threshold,
             hyde=hyde,
@@ -49,16 +86,24 @@ if __name__ == "__main__":
         df = result.to_pandas()
 
         df["judge_model"] = judge_model
+        df["embedding_model"] = embedding_model
+        df["generation_model"] = generation_model
         df["hyde"] = hyde
         df["rerank"] = rerank
         df["contextualize_query"] = contextualize_query
         df["similarity_threshold"] = similarity_threshold
 
-        config_tag = f"hyde={hyde}_rerank={rerank}_contextualize={contextualize_query}_threshold={similarity_threshold}"
+        emb_tag = sanitize_model_name(embedding_model)
+        gen_tag = sanitize_model_name(generation_model)
+        config_tag = f"emb={emb_tag}_gen={gen_tag}_hyde={hyde}_rerank={rerank}_contextualize={contextualize_query}_threshold={similarity_threshold}"
+
+        Path("data/evals").mkdir(parents=True, exist_ok=True)
         df.to_csv(f"data/evals/results_{config_tag}.csv", index=False)
 
         summary = {
             "judge_model": judge_model,
+            "embedding_model": embedding_model,
+            "generation_model": generation_model,
             "hyde": hyde,
             "rerank": rerank,
             "contextualize_query": contextualize_query,
@@ -107,13 +152,6 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     if len(sys.argv) > 1 and sys.argv[1] == "run-ragas-eval":
-        rag_client = RAG(
-            generation_model=settings.generation_model,
-            embedding_model=settings.embeding_model,
-            llm_client=ollama_client,
-            document_splitter=bo_document_splitter,
-        )
-
         ablation_configs = [
             {"hyde": False, "rerank": False, "contextualize_query": False},
             {"hyde": False, "rerank": True, "contextualize_query": False},
@@ -121,32 +159,30 @@ if __name__ == "__main__":
             {"hyde": True, "rerank": True, "contextualize_query": False},
         ]
 
+        model_configs = [
+            {"embedding_model": "bge-m3", "generation_model": "qwen2.5:7b"},
+            # {"embedding_model": "multilingual-e5-large", "generation_model": "qwen2.5:7b"},
+            {"embedding_model": "bge-m3", "generation_model": "mistral:7b"},
+            {"embedding_model": "bge-m3", "generation_model": "gemma2:9b"},
+        ]
+
         async def run_all():
-            for cfg in ablation_configs:
-                print(f"\n=== Running: {cfg} ===")
-                await run_evaluation(**cfg)
+            for model_cfg in model_configs:
+                rag = RAG(
+                    generation_model=model_cfg["generation_model"],
+                    embedding_model=model_cfg["embedding_model"],
+                    llm_client=ollama_client,
+                    document_splitter=bo_document_splitter,
+                )
+                for ablation_cfg in ablation_configs:
+                    print(f"\n=== Running: {model_cfg} | {ablation_cfg} ===")
+                    await run_evaluation(rag=rag, **model_cfg, **ablation_cfg)
 
         asyncio.run(run_all())
         raise SystemExit(0)
 
-    document_repository = DocumentRepository()
-    document_converter = DoclingDocumentConverterAdapter()
-    data_ingestion = DataIngesion(document_converter=document_converter)
-
-    generic_splitter = GenericSplitter()
-    rag_client = RAG(
-        generation_model=settings.generation_model,
-        embedding_model=settings.embeding_model,
-        llm_client=ollama_client,
-        document_splitter=bo_document_splitter,
-    )
-    conversation_manager = ConversationManager(llm_client=ollama_client, rag=rag_client)
-    document_embedding = DocumentEmbedding(
-        embedding_model=settings.embeding_model,
-        llm_client=ollama_client,
-        document_splitters={4: bo_document_splitter},
-        generation_model=settings.generation_model,
-    )
+    if len(sys.argv) > 1 and sys.argv[1] == "create-embeddings":
+        asyncio.run(create_document_chunks_with_embeddings())
 
     async def ingest():
         crawler = SGGCrawler()
@@ -181,24 +217,11 @@ if __name__ == "__main__":
             )
 
         with get_session() as session:
-            res = session.execute(stmt).scalars().all()
-            docs = [doc for doc in res]
-            print(len(docs))
-            if not res:
-                raise ValueError("Document not found")
-            await document_embedding.split_and_insert_embeddings(documents=docs)
-
-    async def split_and_embed_chunks():
-        # read one document, check the hierarchy
-        with get_session() as session:
-            stmt = (
-                select(Document)
-                .outerjoin(DocumentChunk, Document.id == DocumentChunk.document_id)
-                .where(DocumentChunk.id.is_(None))
-            )
             documents = session.execute(stmt).scalars().all()
-            docs = [doc for doc in documents]
-            await document_embedding.split_and_insert_embeddings(documents=docs)
+            print(len(documents))
+            if not documents:
+                raise ValueError("Document not found")
+            await document_embedding.split_and_insert_embeddings(documents=documents)
 
     async def ask():
         sys.stdin.reconfigure(encoding="utf-8")
@@ -228,7 +251,7 @@ if __name__ == "__main__":
         hyde_chunks = await rag_client.hyde(query=query, similarity_threshold=x)
 
         all_chunks = hyde_chunks + similar_chunks
-        res = rag_client.rerank(query=query, chunks=all_chunks)
+        rag_client.rerank(query=query, chunks=all_chunks)
 
     async def check_distance():
         client = ollama.AsyncClient()
@@ -252,8 +275,3 @@ if __name__ == "__main__":
             )
             for row in rows:
                 print(row["distance"])
-
-    # asyncio.run(text_extraction_and_embedding())
-    # asyncio.run(text_extraction())
-    asyncio.run(split_and_embed_chunks())
-    # asyncio.run(ask())

@@ -17,3 +17,8 @@ def parse_ms_json_date(date_string: str) -> date | None:
         return None
     timestamp_ms = int(date_value.group())
     return datetime.fromtimestamp(timestamp_ms / 1000).date()
+
+
+def sanitize_model_name(model: str) -> str:
+    """Convert model name to filename-safe string by replacing / and : with -"""
+    return model.replace("/", "-").replace(":", "-")

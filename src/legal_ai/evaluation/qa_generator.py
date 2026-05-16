@@ -19,14 +19,13 @@ class QASyntheticGenerator:
 
         ---
 
-        Génère une question juridique précise dont la réponse complète
+        Génère une question juridique dont la réponse complète
         est contenue dans cet extrait.
         Question :
         """
-        system_prompt = """Tu es un expert en droit marocain chargé de créer des questions d'évaluation.
-        Génère une question précise et factuelle dont la réponse se trouve
-        intégralement dans l'extrait fourni.
-        Réponds UNIQUEMENT avec la question, sans introduction ni explication.
+        system_prompt = """Tu es un collaborateur administratif qui cherche une information dans la réglementation.
+        formule la question comme un utilisateur non-juriste la poserait dans un moteur de recherche, 
+        en langage courant, sans utiliser le vocabulaire normatif de l'extrait
         """
         answer = await self.llm_client.chat(
             model=self.model,

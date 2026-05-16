@@ -44,9 +44,3 @@ class ResponseWithContext(BaseModel):
     answer: str
     context: list[dict[str, Any]]
     sources: list[dict[str, str | None]]
-
-
-@dataclass
-class EvaluationDatasetRow:
-    question: str
-    ground_truth: str

@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from legal_ai.database import get_session
 from legal_ai.models.document import Document, DocumentChunk
-from legal_ai.models.schemas import EvaluationDatasetRow
+from legal_ai.evaluation.schemas import EvaluationDatasetRow
 
 
 CSV_HEADERS = [
