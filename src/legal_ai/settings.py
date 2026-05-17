@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     groq_model: str = "llama-3.1-70b-versatile"
     openrouter_api_key: SecretStr = SecretStr("")
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    openrouter_model: str = "mistralai/mistral-7b-instruct"
+    openrouter_model: str = "qwen/qwen-2.5-7b-instruct"
 
     # API server
     api_host: str = "0.0.0.0"

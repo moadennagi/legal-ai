@@ -76,7 +76,7 @@ with st.sidebar:
         - **Corpus** : extrait du Bulletin Officiel marocain
         - **Embedding** : `bge-m3` (multilingue, 1024 dimensions)
         - **Recherche** : pgvector avec reranking par cross-encoder
-        - **Génération** : Mistral 7B via OpenRouter
+        - **Génération** : Qwen 2.5 7B via OpenRouter
         - **Évaluation** : RAGAS (quatre métriques)
         """
     )
@@ -409,7 +409,7 @@ with tab_method:
 │  FastAPI (port 8000, compatible OpenAI)                 │
 │     ├─ embeddings  → Ollama bge-m3 (local, CPU)         │
 │     ├─ recherche   → Postgres + pgvector (local)        │
-│     └─ génération  → OpenRouter (Mistral 7B)            │
+│     └─ génération  → OpenRouter (Qwen 2.5 7B)           │
 └─────────────────────────────────────────────────────────┘""",
         language="text",
     )
