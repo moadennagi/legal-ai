@@ -84,6 +84,24 @@ class OpenAICompatibleAdapter(LLMClientInterface):
         return response.choices[0].message.content or ""
 
 
+class SplitLLMClientAdapter(LLMClientInterface):
+    """Routes embeddings to one adapter and chat to another.
+
+    Used when the embedding model (Ollama bge-m3) and the generation model
+    (cloud provider) run on different backends.
+    """
+
+    def __init__(self, embedding: LLMClientInterface, chat: LLMClientInterface) -> None:
+        self._embedding = embedding
+        self._chat = chat
+
+    async def embeddings(self, model: str, prompt: str) -> list[float]:
+        return await self._embedding.embeddings(model=model, prompt=prompt)
+
+    async def chat(self, model: str, messages: list[dict[str, str]]) -> str:
+        return await self._chat.chat(model=model, messages=messages)
+
+
 def build_chat_client() -> LLMClientInterface:
     """Build the chat client according to LLM_PROVIDER setting."""
     provider = settings.llm_provider

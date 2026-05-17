@@ -12,7 +12,9 @@ class ConversationManager:
         self.llm_client = llm_client
         self.rag = rag
 
-    async def ask(self, query: str, similarity_threshold: float) -> ResponseWithContext:
+    async def ask(
+        self, query: str, similarity_threshold: float, contextualize_query: bool = False
+    ) -> ResponseWithContext:
         """
         Update conversation history with user quer and llm answer, manage history token
         limit by sliding window of summary + last for messages. the conversation
@@ -32,6 +34,7 @@ class ConversationManager:
         answer = await self.rag.ask(
             user_query=query,
             similarity_threshold=similarity_threshold,
+            contextualize_query=contextualize_query,
             history=self.history[:-1],  # in order to not sent the user query twice
         )
         self.history.append({"role": "assistant", "content": answer.answer})

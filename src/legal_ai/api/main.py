@@ -6,7 +6,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from typing import Any
 
-from legal_ai.adapters import OllamaLLMClientAdapter, build_chat_client, get_chat_model
+from legal_ai.adapters import OllamaLLMClientAdapter, SplitLLMClientAdapter, build_chat_client, get_chat_model
 from legal_ai.api.schemas import ChatRequest
 from legal_ai.pipeline.conversation import ConversationManager
 from legal_ai.pipeline.rag import RAG
@@ -41,10 +41,15 @@ chat_client = build_chat_client()
 chat_model = get_chat_model()
 
 bo_document_splitter = MoroccanBulettinOfficielSplitter()
+rag_llm_client = (
+    chat_client
+    if settings.llm_provider == "ollama"
+    else SplitLLMClientAdapter(embedding=embedding_client, chat=chat_client)
+)
 rag_client = RAG(
     generation_model=chat_model,
     embedding_model=settings.embeding_model,
-    llm_client=chat_client if settings.llm_provider == "ollama" else embedding_client,
+    llm_client=rag_llm_client,
     document_splitter=bo_document_splitter,
 )
 # When the chat provider differs from the embedding provider, swap the chat call
