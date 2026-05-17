@@ -1,3 +1,15 @@
+---
+title: Legal AI — RAG Démo
+emoji: ⚖️
+colorFrom: indigo
+colorTo: blue
+sdk: docker
+app_port: 7860
+pinned: false
+license: mit
+short_description: Démo RAG souverain sur le Bulletin Officiel marocain
+---
+
 # Legal AI — Sovereign RAG for legal documents
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
