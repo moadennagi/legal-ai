@@ -10,7 +10,7 @@ PGPW="${POSTGRES_PASSWORD:-demo}"
 PGDATA="${PGDATA:-/var/lib/postgresql/data}"
 PG_BIN="/usr/lib/postgresql/16/bin"
 
-export DATABASE_URL="${DATABASE_URL:-postgresql://${PGUSER}:${PGPW}@localhost:5432/${PGDB}}"
+export DATABASE_URL="${DATABASE_URL:-postgresql://${PGUSER}@localhost:5432/${PGDB}}"
 export LLM_PROVIDER="${LLM_PROVIDER:-together}"
 export OLLAMA_HOST="${OLLAMA_HOST:-http://localhost:11434}"
 export EMBEDING_MODEL="${EMBEDING_MODEL:-bge-m3}"
@@ -21,12 +21,9 @@ log() { echo "[entrypoint] $*"; }
 # ─── 1. Postgres : init + start ─────────────────────────────────────────────
 if [ ! -s "${PGDATA}/PG_VERSION" ]; then
     log "Initialising Postgres cluster in ${PGDATA}"
-    _pw_file=$(mktemp)
-    echo "${PGPW}" > "${_pw_file}"
-    su postgres -c "${PG_BIN}/initdb -D ${PGDATA} --auth-host=md5 --username=${PGUSER} --pwfile=${_pw_file}"
-    rm -f "${_pw_file}"
-    echo "host all all 127.0.0.1/32 md5"  >> "${PGDATA}/pg_hba.conf"
-    echo "listen_addresses='localhost'"    >> "${PGDATA}/postgresql.conf"
+    # Use trust auth — no password needed for local connections inside the container.
+    su postgres -c "${PG_BIN}/initdb -D ${PGDATA} --auth=trust --username=${PGUSER}"
+    echo "listen_addresses='localhost'" >> "${PGDATA}/postgresql.conf"
 fi
 
 log "Starting Postgres"
@@ -44,19 +41,19 @@ log "Applying schema migrations from /app/sql/"
 for sql_file in /app/sql/*.sql; do
     [ -e "$sql_file" ] || continue
     log "  → $(basename "$sql_file")"
-    PGPASSWORD="${PGPW}" psql -h localhost -U "${PGUSER}" -d "${PGDB}" -f "$sql_file" \
+    su postgres -c "psql -d ${PGDB} -f $sql_file" \
         > /dev/null 2>&1 || log "    (skipped or already applied)"
 done
 
 # Restore the seed dump if present and DB is empty
 if [ -f /app/sql/seed_chunks.sql.gz ]; then
-    CHUNK_COUNT=$(PGPASSWORD="${PGPW}" psql -h localhost -U "${PGUSER}" -d "${PGDB}" \
-        -tAc "SELECT count(*) FROM document_chunks" 2>/dev/null || echo "0")
+    CHUNK_COUNT=$(su postgres -c "psql -d ${PGDB} -tAc 'SELECT count(*) FROM document_chunks'" \
+        2>/dev/null || echo "0")
     if [ "${CHUNK_COUNT}" = "0" ]; then
         log "Restoring seed dump (this may take a few minutes)"
-        gunzip -c /app/sql/seed_chunks.sql.gz | \
-            PGPASSWORD="${PGPW}" psql -h localhost -U "${PGUSER}" -d "${PGDB}"
-        log "Seed restored : $(PGPASSWORD=${PGPW} psql -h localhost -U ${PGUSER} -d ${PGDB} -tAc 'SELECT count(*) FROM document_chunks') chunks"
+        gunzip -c /app/sql/seed_chunks.sql.gz | su postgres -c "psql -d ${PGDB}"
+        FINAL=$(su postgres -c "psql -d ${PGDB} -tAc 'SELECT count(*) FROM document_chunks'")
+        log "Seed restored : ${FINAL} chunks"
     else
         log "Database already contains ${CHUNK_COUNT} chunks → skipping restore"
     fi
