@@ -11,7 +11,7 @@ PGDATA="${PGDATA:-/var/lib/postgresql/data}"
 PG_BIN="/usr/lib/postgresql/16/bin"
 
 export DATABASE_URL="${DATABASE_URL:-postgresql://${PGUSER}@localhost:5432/${PGDB}}"
-export LLM_PROVIDER="${LLM_PROVIDER:-together}"
+export LLM_PROVIDER="${LLM_PROVIDER:-openrouter}"
 export OLLAMA_HOST="${OLLAMA_HOST:-http://localhost:11434}"
 export EMBEDING_MODEL="${EMBEDING_MODEL:-bge-m3}"
 export API_URL="${API_URL:-http://localhost:8000}"
@@ -55,8 +55,9 @@ if [ -f /app/sql/seed_chunks.sql.gz ]; then
         2>/dev/null || echo "0")
     if [ "${CHUNK_COUNT}" = "0" ]; then
         log "Restoring seed dump (this may take a few minutes)"
-        gunzip -c /app/sql/seed_chunks.sql.gz | su postgres -c "psql --no-psqlrc -d ${PGDB}"
-        FINAL=$(su postgres -c "psql --no-psqlrc -d ${PGDB} -tAc 'SELECT count(*) FROM document_chunks'")
+        gunzip -c /app/sql/seed_chunks.sql.gz | su postgres -c "psql --no-psqlrc -d ${PGDB}" || true
+        FINAL=$(su postgres -c "psql --no-psqlrc -d ${PGDB} -tAc 'SELECT count(*) FROM document_chunks'" \
+            2>/dev/null || echo "0")
         log "Seed restored : ${FINAL} chunks"
     else
         log "Database already contains ${CHUNK_COUNT} chunks → skipping restore"
