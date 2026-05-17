@@ -84,16 +84,23 @@ export OLLAMA_HOST="http://localhost:11434"
 
 # ─── 3. FastAPI : start in background ───────────────────────────────────────
 log "Starting FastAPI on :8000"
-nohup uvicorn legal_ai.api.main:app --host 0.0.0.0 --port 8000 \
-    > /tmp/api.log 2>&1 &
+uvicorn legal_ai.api.main:app --host 0.0.0.0 --port 8000 &
 API_PID=$!
 
-# Wait for API health
-for i in $(seq 1 60); do
-    curl -sf http://localhost:8000/health > /dev/null && break
+# Wait for API health — 120 s to account for cross-encoder model download on cold start
+API_READY=0
+for i in $(seq 1 120); do
+    if curl -sf http://localhost:8000/health > /dev/null; then
+        API_READY=1
+        break
+    fi
     sleep 1
 done
-log "FastAPI ready (PID ${API_PID})"
+if [ "${API_READY}" = "1" ]; then
+    log "FastAPI ready (PID ${API_PID})"
+else
+    log "WARNING: FastAPI did not respond after 120 s — Streamlit will show API offline"
+fi
 
 # ─── 4. Streamlit : foreground on :7860 ─────────────────────────────────────
 log "Starting Streamlit on :7860"
