@@ -166,9 +166,7 @@ def load_ragas_runs() -> pd.DataFrame:
 
 # ─── Tabs ────────────────────────────────────────────────────────────────────
 
-tab_demo, tab_ragas, tab_method = st.tabs(
-    ["Démonstration", "Résultats RAGAS", "Méthodologie"]
-)
+tab_demo, tab_ragas, tab_method = st.tabs(["Démonstration", "Résultats RAGAS", "Méthodologie"])
 
 
 # ─── Tab 1 : Démonstration ───────────────────────────────────────────────────
@@ -285,18 +283,35 @@ with tab_ragas:
             "`evals/summary.json`."
         )
     else:
-        # ─── Best config highlight ──────────────────────────────────────────
-        best = df.loc[df["mean"].idxmax()]
-        st.subheader("Meilleure configuration")
+        # ─── Configuration retenue (cf. mémoire §3.2.3 et §3.3.3) ──────────
+        # Le mémoire retient `sans HyDE + reranking` comme configuration de
+        # référence (meilleur rapport performance/coût) et qwen2.5:7b comme
+        # modèle de génération (fidélité supérieure, critère prioritaire en
+        # contexte juridique). C'est aussi la configuration déployée pour la
+        # démonstration ci-contre.
+        retained = df[~df["hyde"] & df["rerank"] & (df["generation"] == "qwen2.5:7b")]
+        if retained.empty:
+            # Fallback : meilleur score si la configuration retenue n'existe pas
+            current = df.loc[df["mean"].idxmax()]
+            st.subheader("Meilleure configuration mesurée")
+        else:
+            current = retained.iloc[0]
+            st.subheader("Configuration retenue")
+            st.caption(
+                "Configuration de référence du mémoire (§3.2.3, §3.3.3) et "
+                "déployée pour la démonstration. Le détail des autres "
+                "configurations testées est consultable dans le tableau ci-dessous."
+            )
+
         col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Modèle de génération", best["generation"])
-        col2.metric("HyDE", "Activé" if best["hyde"] else "Désactivé")
-        col3.metric("Reranking", "Activé" if best["rerank"] else "Désactivé")
-        col4.metric("Score moyen", f"{best['mean']:.3f}")
+        col1.metric("Modèle de génération", current["generation"])
+        col2.metric("HyDE", "Activé" if current["hyde"] else "Désactivé")
+        col3.metric("Reranking", "Activé" if current["rerank"] else "Désactivé")
+        col4.metric("Score moyen", f"{current['mean']:.3f}")
 
         cols = st.columns(4)
         for i, (key, label) in enumerate(METRIC_LABELS.items()):
-            cols[i].metric(label, f"{best[key]:.3f}")
+            cols[i].metric(label, f"{current[key]:.3f}")
 
         st.divider()
 
