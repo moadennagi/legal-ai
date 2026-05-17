@@ -1,53 +1,68 @@
-# ─── Stage 1 : build ──────────────────────────────────────────────────────
-FROM python:3.12-slim AS builder
+# Monolithic image for HuggingFace Spaces (Docker SDK).
+# Bundles: Postgres 16 + pgvector, Ollama (bge-m3 only), FastAPI, Streamlit.
+# Heavy ingestion deps (docling, unstructured) are excluded to keep the image
+# under ~3 GB. See requirements-hfspace.txt.
+
+FROM python:3.12-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PYTHONPATH=/app/src \
+    DEBIAN_FRONTEND=noninteractive \
+    PGDATA=/var/lib/postgresql/data \
+    OLLAMA_HOST=0.0.0.0:11434 \
+    OLLAMA_MODELS=/root/.ollama/models
 
-# System deps for psycopg2, pgvector, docling (PDF parsing)
+# ─── System dependencies ────────────────────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    libpq-dev \
+        curl ca-certificates gnupg lsb-release \
+        build-essential libpq-dev \
+        supervisor procps zstd \
+    && echo "deb http://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
+        > /etc/apt/sources.list.d/pgdg.list \
+    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+        | gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg \
+    && apt-get update && apt-get install -y --no-install-recommends \
+        postgresql-16 postgresql-16-pgvector \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /build
+# ─── Ollama ─────────────────────────────────────────────────────────────────
+RUN curl -fsSL https://ollama.com/install.sh | sh
 
-COPY pyproject.toml ./
-COPY src ./src
-
-# Install with uv (faster than pip)
-RUN pip install --no-cache-dir uv \
- && uv pip install --system --no-cache .
-
-
-# ─── Stage 2 : runtime ────────────────────────────────────────────────────
-FROM python:3.12-slim
-
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app/src
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5 \
-    curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && useradd --create-home --uid 1000 --shell /bin/bash appuser
-
+# ─── Python deps (cached layer before code) ─────────────────────────────────
 WORKDIR /app
+COPY requirements-hfspace.txt /app/requirements-hfspace.txt
+RUN pip install --no-cache-dir -r /app/requirements-hfspace.txt
 
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
-COPY --chown=appuser:appuser src ./src
-COPY --chown=appuser:appuser env.example ./env.example
-COPY --chown=appuser:appuser sql ./sql
+# ─── Pre-pull bge-m3 at build time (avoids ~3 min cold start at boot) ───────
+RUN ollama serve & \
+    SERVER_PID=$! ; \
+    for i in $(seq 1 30); do \
+        curl -sf http://localhost:11434/api/tags > /dev/null && break ; \
+        sleep 1 ; \
+    done ; \
+    ollama pull bge-m3 ; \
+    kill $SERVER_PID ; \
+    wait $SERVER_PID 2>/dev/null || true
 
-USER appuser
+# ─── Application code ───────────────────────────────────────────────────────
+COPY src /app/src
+COPY frontend/streamlit_app.py /app/frontend/streamlit_app.py
+COPY evals/summary.json /app/evals/summary.json
+COPY sql /app/sql
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
-EXPOSE 8000
+# ─── Init Postgres data dir + permissions ───────────────────────────────────
+# HuggingFace Spaces runs as user 1000 (no root). Postgres needs to own PGDATA.
+RUN mkdir -p ${PGDATA} /var/run/postgresql /root/.ollama \
+    && chown -R postgres:postgres ${PGDATA} /var/run/postgresql \
+    && chmod 700 ${PGDATA}
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
-    CMD curl -fsS http://localhost:8000/health || exit 1
+# Streamlit listens on the port HuggingFace exposes.
+EXPOSE 7860
 
-CMD ["uvicorn", "legal_ai.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -fsS http://localhost:7860/_stcore/health || exit 1
+
+CMD ["/app/entrypoint.sh"]
