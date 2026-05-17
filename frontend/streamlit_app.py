@@ -1,12 +1,12 @@
 """Streamlit demo UI for the Legal AI RAG system.
 
 Three tabs:
-  - Démo : interactive Q&A against the FastAPI backend
+  - Démonstration : interactive Q&A against the FastAPI backend
   - Résultats RAGAS : visualisation of the evaluation runs from evals/summary.json
   - Méthodologie : architecture + evaluation methodology summary
 
 The backend URL is configurable through the `API_URL` env var.
-Deployed as a single HuggingFace Space (Docker) — see README_HFSPACE.md.
+Deployed as a single HuggingFace Space (Docker).
 """
 
 import json
@@ -44,18 +44,17 @@ SAMPLE_QUESTIONS = [
 ]
 
 METRIC_LABELS = {
-    "faithfulness": "Faithfulness",
-    "answer_relevancy": "Answer relevancy",
-    "context_precision": "Context precision",
-    "context_recall": "Context recall",
+    "faithfulness": "Fidélité",
+    "answer_relevancy": "Pertinence de la réponse",
+    "context_precision": "Précision du contexte",
+    "context_recall": "Rappel du contexte",
 }
 
 
 # ─── Page configuration ──────────────────────────────────────────────────────
 
 st.set_page_config(
-    page_title="Legal AI — RAG démo",
-    page_icon="⚖️",
+    page_title="Legal AI — Démonstration RAG",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -64,31 +63,31 @@ st.set_page_config(
 # ─── Sidebar ─────────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.title("⚖️ Legal AI")
+    st.title("Legal AI")
     st.markdown(
-        "Système RAG souverain pour textes juridiques en français, "
-        "validé sur le **Bulletin Officiel du Royaume du Maroc**."
+        "Système de génération augmentée par récupération (RAG) appliqué à un extrait "
+        "du Bulletin Officiel du Royaume du Maroc."
     )
 
     st.divider()
-    st.subheader("À propos")
+    st.subheader("Composants")
     st.markdown(
         """
-        - 📚 **Corpus** : Bulletin Officiel marocain (extrait)
-        - 🧠 **Embedding** : `bge-m3` (multilingue)
-        - 🔍 **Retrieval** : pgvector + cross-encoder reranking
-        - 🤖 **Génération** : Mistral 7B via Together AI
-        - 📊 **Évaluation** : RAGAS (4 métriques)
+        - **Corpus** : extrait du Bulletin Officiel marocain
+        - **Embedding** : `bge-m3` (multilingue, 1024 dimensions)
+        - **Recherche** : pgvector avec reranking par cross-encoder
+        - **Génération** : Mistral 7B via OpenRouter
+        - **Évaluation** : RAGAS (quatre métriques)
         """
     )
 
     st.divider()
-    st.subheader("Liens")
+    st.subheader("Ressources")
     st.markdown(
         """
-        - [📦 Code source (GitHub)](https://github.com/moadennagi/legal-ai)
-        - [📖 Documentation](https://github.com/moadennagi/legal-ai#readme)
-        - [📊 Méthodologie d'évaluation](https://github.com/moadennagi/legal-ai/blob/main/docs/EVALUATION.md)
+        - [Code source](https://github.com/moadennagi/legal-ai)
+        - [Documentation](https://github.com/moadennagi/legal-ai#readme)
+        - [Méthodologie d'évaluation](https://github.com/moadennagi/legal-ai/blob/main/docs/EVALUATION.md)
         """
     )
 
@@ -97,6 +96,7 @@ with st.sidebar:
 
 
 # ─── Backend health check ────────────────────────────────────────────────────
+
 
 @st.cache_data(ttl=30)
 def check_api_health() -> dict[str, Any] | None:
@@ -110,12 +110,13 @@ def check_api_health() -> dict[str, Any] | None:
 
 health = check_api_health()
 if health:
-    api_status.success(f"🟢 API en ligne — `{health.get('chat_model', 'unknown')}`")
+    api_status.success(f"API disponible — modèle : `{health.get('chat_model', 'inconnu')}`")
 else:
-    api_status.error("🔴 API hors ligne. Vérifiez `API_URL`.")
+    api_status.error("API indisponible. Vérifiez la variable `API_URL`.")
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
+
 
 def call_rag_api(query: str) -> dict[str, Any]:
     """Call the OpenAI-compatible /v1/chat/completions endpoint."""
@@ -166,14 +167,14 @@ def load_ragas_runs() -> pd.DataFrame:
 # ─── Tabs ────────────────────────────────────────────────────────────────────
 
 tab_demo, tab_ragas, tab_method = st.tabs(
-    ["💬 Démo", "📊 Résultats RAGAS", "ℹ️ Méthodologie"]
+    ["Démonstration", "Résultats RAGAS", "Méthodologie"]
 )
 
 
-# ─── Tab 1 : Démo ────────────────────────────────────────────────────────────
+# ─── Tab 1 : Démonstration ───────────────────────────────────────────────────
 
 with tab_demo:
-    st.title("Démo Legal AI — RAG juridique")
+    st.title("Démonstration")
 
     st.markdown(
         "Posez une question sur un texte juridique du Bulletin Officiel marocain. "
@@ -182,20 +183,17 @@ with tab_demo:
     )
 
     st.warning(
-        "⚠️ **Démo académique** — Les réponses générées peuvent contenir des erreurs "
-        "et **ne constituent pas un conseil juridique**. Vérifiez toujours les sources citées.",
-        icon="⚠️",
+        "Démonstration académique. Les réponses générées peuvent contenir des erreurs "
+        "et ne constituent pas un conseil juridique. Vérifiez toujours les sources citées.",
     )
 
-    st.subheader("Posez votre question")
+    st.subheader("Question")
 
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        selected_sample = st.selectbox(
-            "Exemples de questions",
-            options=["— sélectionner un exemple —"] + SAMPLE_QUESTIONS,
-            index=0,
-        )
+    selected_sample = st.selectbox(
+        "Exemples de questions",
+        options=["— sélectionner un exemple —"] + SAMPLE_QUESTIONS,
+        index=0,
+    )
 
     if "current_question" not in st.session_state:
         st.session_state.current_question = ""
@@ -207,18 +205,18 @@ with tab_demo:
         "Votre question",
         value=st.session_state.current_question,
         height=100,
-        placeholder="Ex: Quelles sont les conditions d'octroi d'une aide aux exploitations agricoles ?",
+        placeholder="Ex : Quelles sont les conditions d'octroi d'une aide aux exploitations agricoles ?",
     )
 
     submit = st.button(
-        "🔍 Demander",
+        "Soumettre",
         type="primary",
         use_container_width=True,
         disabled=(health is None),
     )
 
     if submit and question.strip():
-        with st.spinner("🔎 Recherche et génération en cours… (10-30 sec)"):
+        with st.spinner("Recherche et génération en cours (10 à 30 secondes)…"):
             start = time.time()
             try:
                 result = call_rag_api(question.strip())
@@ -230,29 +228,32 @@ with tab_demo:
                 st.markdown(answer)
 
                 st.caption(
-                    f"⏱️ Réponse générée en {elapsed:.1f}s · "
-                    f"Modèle : `{result.get('model', 'unknown')}`"
+                    f"Réponse générée en {elapsed:.1f} s. "
+                    f"Modèle : `{result.get('model', 'inconnu')}`."
                 )
 
-                with st.expander("📚 Sources consultées"):
+                with st.expander("Sources consultées"):
                     st.info(
-                        "La version actuelle de l'API ne renvoie pas encore le détail "
-                        "des passages utilisés. Les sources sont citées dans la réponse "
-                        "elle-même lorsque le modèle les mentionne."
+                        "La version actuelle de l'API ne renvoie pas le détail des "
+                        "passages utilisés. Les sources sont mentionnées dans la réponse "
+                        "lorsque le modèle les cite."
                     )
 
             except requests.exceptions.Timeout:
                 st.error(
-                    f"⏰ Délai dépassé (>{API_TIMEOUT}s). "
+                    f"Délai dépassé (> {API_TIMEOUT} s). "
                     "Le modèle est peut-être en cours de chargement."
                 )
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 429:
-                    st.error("⚠️ Trop de requêtes. Limite : 10/min par IP. Réessayez dans une minute.")
+                    st.error(
+                        "Trop de requêtes. Limite : 10 par minute et par IP. "
+                        "Réessayez dans une minute."
+                    )
                 else:
-                    st.error(f"❌ Erreur API : {e.response.status_code} — {e.response.text}")
+                    st.error(f"Erreur API : {e.response.status_code} — {e.response.text}")
             except Exception as e:
-                st.error(f"❌ Erreur inattendue : {e}")
+                st.error(f"Erreur inattendue : {e}")
 
     elif submit and not question.strip():
         st.warning("Veuillez saisir une question avant de soumettre.")
@@ -261,33 +262,36 @@ with tab_demo:
 # ─── Tab 2 : Résultats RAGAS ─────────────────────────────────────────────────
 
 with tab_ragas:
-    st.title("📊 Résultats de l'évaluation RAGAS")
+    st.title("Résultats de l'évaluation RAGAS")
 
     st.markdown(
-        "Évaluation comparative de la pipeline RAG sur un jeu de Q/R synthétique "
-        "généré par un LLM différent du LLM de génération (cf. méthodologie §3.6 du mémoire). "
-        "Quatre métriques RAGAS sont rapportées :"
+        "Évaluation comparative de la pipeline RAG sur un jeu de questions/réponses "
+        "synthétique, généré par un modèle de langue distinct du modèle de génération "
+        "évalué (voir méthodologie §3.6 du mémoire). Quatre métriques sont rapportées :"
     )
     st.markdown(
         """
-        - **Faithfulness** : la réponse est-elle factuellement supportée par les chunks récupérés ?
-        - **Answer relevancy** : la réponse répond-elle bien à la question ?
-        - **Context precision** : les chunks récupérés sont-ils pertinents ?
-        - **Context recall** : les chunks couvrent-ils toute l'information nécessaire ?
+        - **Fidélité** (*faithfulness*) : la réponse est-elle factuellement supportée par les passages récupérés ?
+        - **Pertinence de la réponse** (*answer relevancy*) : la réponse traite-t-elle bien la question posée ?
+        - **Précision du contexte** (*context precision*) : les passages récupérés sont-ils pertinents ?
+        - **Rappel du contexte** (*context recall*) : les passages couvrent-ils l'information nécessaire ?
         """
     )
 
     df = load_ragas_runs()
     if df.empty:
-        st.warning("Aucun résultat RAGAS trouvé. Lance d'abord `python -m evals` pour produire `evals/summary.json`.")
+        st.warning(
+            "Aucun résultat RAGAS trouvé. Exécutez `python -m evals` pour produire "
+            "`evals/summary.json`."
+        )
     else:
         # ─── Best config highlight ──────────────────────────────────────────
         best = df.loc[df["mean"].idxmax()]
-        st.subheader("🏆 Meilleure configuration")
+        st.subheader("Meilleure configuration")
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("Modèle de génération", best["generation"])
-        col2.metric("HyDE", "✅" if best["hyde"] else "❌")
-        col3.metric("Reranking", "✅" if best["rerank"] else "❌")
+        col2.metric("HyDE", "Activé" if best["hyde"] else "Désactivé")
+        col3.metric("Reranking", "Activé" if best["rerank"] else "Désactivé")
         col4.metric("Score moyen", f"{best['mean']:.3f}")
 
         cols = st.columns(4)
@@ -315,28 +319,38 @@ with tab_ragas:
 
         # ─── Table ──────────────────────────────────────────────────────────
         display = filtered.copy()
-        display["hyde"] = display["hyde"].map({True: "✅", False: "❌"})
-        display["rerank"] = display["rerank"].map({True: "✅", False: "❌"})
-        display = display.rename(columns={
-            "generation": "Génération",
-            "embedding": "Embedding",
-            "hyde": "HyDE",
-            "rerank": "Rerank",
-            "faithfulness": "Faithf.",
-            "answer_relevancy": "Ans. rel.",
-            "context_precision": "Ctx. prec.",
-            "context_recall": "Ctx. rec.",
-            "mean": "Moyenne",
-        })
+        display["hyde"] = display["hyde"].map({True: "Activé", False: "Désactivé"})
+        display["rerank"] = display["rerank"].map({True: "Activé", False: "Désactivé"})
+        display = display.rename(
+            columns={
+                "generation": "Génération",
+                "embedding": "Embedding",
+                "hyde": "HyDE",
+                "rerank": "Reranking",
+                "faithfulness": "Fidélité",
+                "answer_relevancy": "Pertinence réponse",
+                "context_precision": "Précision contexte",
+                "context_recall": "Rappel contexte",
+                "mean": "Moyenne",
+            }
+        )
         st.dataframe(
-            display.style.format({
-                "Faithf.": "{:.3f}",
-                "Ans. rel.": "{:.3f}",
-                "Ctx. prec.": "{:.3f}",
-                "Ctx. rec.": "{:.3f}",
-                "Moyenne": "{:.3f}",
-            }).background_gradient(
-                subset=["Faithf.", "Ans. rel.", "Ctx. prec.", "Ctx. rec.", "Moyenne"],
+            display.style.format(
+                {
+                    "Fidélité": "{:.3f}",
+                    "Pertinence réponse": "{:.3f}",
+                    "Précision contexte": "{:.3f}",
+                    "Rappel contexte": "{:.3f}",
+                    "Moyenne": "{:.3f}",
+                }
+            ).background_gradient(
+                subset=[
+                    "Fidélité",
+                    "Pertinence réponse",
+                    "Précision contexte",
+                    "Rappel contexte",
+                    "Moyenne",
+                ],
                 cmap="RdYlGn",
                 vmin=0.5,
                 vmax=1.0,
@@ -350,50 +364,52 @@ with tab_ragas:
         chart_df = filtered.copy()
         chart_df["config"] = (
             chart_df["generation"]
-            + " | "
-            + chart_df["hyde"].map({True: "HyDE+", False: "HyDE−"})
-            + " "
-            + chart_df["rerank"].map({True: "RR+", False: "RR−"})
+            + " | HyDE "
+            + chart_df["hyde"].map({True: "on", False: "off"})
+            + " | Rerank "
+            + chart_df["rerank"].map({True: "on", False: "off"})
         )
-        chart_data = chart_df.set_index("config")[list(METRIC_LABELS.keys())]
+        chart_data = chart_df.set_index("config")[list(METRIC_LABELS.keys())].rename(
+            columns=METRIC_LABELS
+        )
         st.bar_chart(chart_data, height=400)
 
         st.caption(
-            f"Total runs affichés : {len(filtered)} · "
-            f"Juge LLM : `gpt-4o-mini` · "
-            f"Embedding : `bge-m3`"
+            f"Configurations affichées : {len(filtered)}. "
+            f"Juge : `gpt-4o-mini`. Modèle d'embedding : `bge-m3`."
         )
 
 
 # ─── Tab 3 : Méthodologie ────────────────────────────────────────────────────
 
 with tab_method:
-    st.title("ℹ️ Méthodologie et architecture")
+    st.title("Méthodologie et architecture")
 
     st.subheader("Pipeline en quatre phases")
     st.markdown(
         """
-        1. **Ingestion** : crawling du site `sgg.gov.ma`, téléchargement concurrent des PDFs
-        2. **Extraction** : Docling convertit chaque PDF en Markdown (OCR désactivé)
-        3. **Embedding** : un splitter spécifique au Bulletin Officiel normalise la hiérarchie
-           des titres juridiques (DAHIR, Loi, Décret, Chapitre, Section…), puis chunke le
-           Markdown avec préservation des en-têtes. Embedding via `bge-m3` (1024 dim).
-        4. **RAG** : HyDE (embedding de la question + d'une réponse hypothétique) +
-           recherche pgvector (IVFFLAT, 10 probes) + reranking cross-encoder
-           (`ms-marco-MiniLM-L-6-v2`).
+        1. **Ingestion** : collecte des PDFs depuis `sgg.gov.ma` avec téléchargement concurrent.
+        2. **Extraction** : conversion des PDFs en Markdown via Docling (OCR désactivé).
+        3. **Indexation** : un splitter spécifique au Bulletin Officiel normalise la hiérarchie
+           des titres juridiques (Dahir, Loi, Décret, Chapitre, Section), puis segmente le
+           Markdown en préservant les en-têtes. Les vecteurs sont produits par `bge-m3`
+           (1024 dimensions) et stockés dans PostgreSQL via pgvector.
+        4. **Génération augmentée** : HyDE (embedding conjoint de la question et d'une
+           réponse hypothétique), recherche dense par index IVFFLAT, puis reranking par
+           cross-encoder (`ms-marco-MiniLM-L-6-v2`) avant génération.
         """
     )
 
-    st.subheader("Architecture de déploiement (démo)")
+    st.subheader("Architecture de déploiement de la démonstration")
     st.code(
         """┌─────────── HuggingFace Space (Docker, CPU) ────────────┐
 │                                                         │
 │  Streamlit (port 7860)                                  │
-│     ↓                                                   │
-│  FastAPI (port 8000, OpenAI-compatible)                 │
-│     ├─ embeddings → Ollama bge-m3 (CPU, local)          │
-│     ├─ retrieval  → Postgres + pgvector (local)         │
-│     └─ génération → Together AI (Mistral 7B)            │
+│     │                                                   │
+│  FastAPI (port 8000, compatible OpenAI)                 │
+│     ├─ embeddings  → Ollama bge-m3 (local, CPU)         │
+│     ├─ recherche   → Postgres + pgvector (local)        │
+│     └─ génération  → OpenRouter (Mistral 7B)            │
 └─────────────────────────────────────────────────────────┘""",
         language="text",
     )
@@ -401,13 +417,13 @@ with tab_method:
     st.subheader("Méthodologie d'évaluation RAGAS")
     st.markdown(
         """
-        - **Jeu de Q/R** : généré par un LLM **différent** du LLM de génération évalué,
-          pour éviter le biais d'évaluation circulaire. Chaque paire est ensuite
-          revue manuellement avant inclusion dans le dataset final.
-        - **Juge** : `gpt-4o-mini` (provider externe), invariant pour toutes les configs.
+        - **Jeu de questions/réponses** : généré par un modèle de langue distinct du
+          modèle évalué, afin d'éviter le biais d'évaluation circulaire. Chaque paire
+          est revue manuellement avant inclusion dans le jeu d'évaluation final.
+        - **Juge** : `gpt-4o-mini` (fournisseur externe), constant pour toutes les configurations.
         - **Variables comparées** : modèle de génération (qwen2.5:7b, mistral:7b, gemma2:9b),
-          HyDE on/off, reranking on/off.
-        - **Métriques** : faithfulness, answer relevancy, context precision, context recall.
+          activation de HyDE, activation du reranking.
+        - **Métriques** : fidélité, pertinence de la réponse, précision et rappel du contexte.
 
         Voir le mémoire §3.6 et [`docs/EVALUATION.md`](https://github.com/moadennagi/legal-ai/blob/main/docs/EVALUATION.md).
         """
@@ -416,12 +432,12 @@ with tab_method:
     st.subheader("Limitations connues")
     st.markdown(
         """
-        - **Latence** : sur CPU (démo gratuite), une requête prend 10-30 sec
-          (embedding bge-m3 ~2 sec + génération externe + reranking).
-        - **Corpus** : la démo expose un sous-ensemble du Bulletin Officiel (3 domaines).
-          Le mémoire évalue sur un corpus plus large.
-        - **Pas de citation explicite des sources** dans la réponse pour le moment
-          (les chunks récupérés sont utilisés par le LLM mais pas exposés par l'API).
+        - **Latence** : sur CPU (instance gratuite), une requête prend 10 à 30 secondes
+          (embedding bge-m3, génération distante, reranking).
+        - **Corpus** : la démonstration n'expose qu'un sous-ensemble du Bulletin Officiel
+          (trois domaines). Le mémoire évalue le système sur un corpus plus large.
+        - **Sources non exposées** : les passages récupérés sont utilisés pour la génération
+          mais ne sont pas renvoyés par l'API dans cette version.
         """
     )
 
@@ -430,7 +446,7 @@ with tab_method:
 
 st.divider()
 st.caption(
-    "Projet de recherche académique · "
-    "Code source [MIT License](https://github.com/moadennagi/legal-ai/blob/main/LICENSE) · "
-    "© 2026 Moad Ennagi"
+    "Projet de recherche académique. "
+    "Code source sous [licence MIT](https://github.com/moadennagi/legal-ai/blob/main/LICENSE). "
+    "Moad Ennagi, 2026."
 )
