@@ -94,6 +94,11 @@ def build_chat_client() -> LLMClientInterface:
             api_key=settings.groq_api_key.get_secret_value(),
             base_url=settings.groq_base_url,
         )
+    if provider == "openrouter":
+        return OpenAICompatibleAdapter(
+            api_key=settings.openrouter_api_key.get_secret_value(),
+            base_url=settings.openrouter_base_url,
+        )
     if provider == "openai":
         return OpenAILLMClientAdapter(api_key=settings.openai_api_key.get_secret_value())
     raise ValueError(f"Unknown LLM_PROVIDER: {provider}")
@@ -106,4 +111,6 @@ def get_chat_model() -> str:
         return settings.together_model
     if provider == "groq":
         return settings.groq_model
+    if provider == "openrouter":
+        return settings.openrouter_model
     return settings.generation_model

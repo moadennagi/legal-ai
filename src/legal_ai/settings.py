@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     reranking_model: str = "BAAI/bge-reranker-v2-m3"
 
     # LLM provider routing
-    llm_provider: Literal["ollama", "together", "groq", "openai"] = "ollama"
+    llm_provider: Literal["ollama", "together", "groq", "openai", "openrouter"] = "ollama"
 
     # Cloud providers (OpenAI-compatible)
     openai_api_key: SecretStr = SecretStr("")
@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     groq_api_key: SecretStr = SecretStr("")
     groq_base_url: str = "https://api.groq.com/openai/v1"
     groq_model: str = "llama-3.1-70b-versatile"
+    openrouter_api_key: SecretStr = SecretStr("")
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_model: str = "mistralai/mistral-7b-instruct"
 
     # API server
     api_host: str = "0.0.0.0"
