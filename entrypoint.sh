@@ -36,23 +36,27 @@ if ! su postgres -c "psql -tAc \"SELECT 1 FROM pg_database WHERE datname='${PGDB
     su postgres -c "psql -d ${PGDB} -c 'CREATE EXTENSION IF NOT EXISTS vector;'"
 fi
 
-# Apply schema migrations (idempotent)
+# Apply schema migrations (dependency order: init first, then numbered, then fix)
 log "Applying schema migrations from /app/sql/"
-for sql_file in /app/sql/*.sql; do
+PSQL_CMD="psql --no-psqlrc -d ${PGDB}"
+for sql_file in \
+    /app/sql/init.sql \
+    $(ls /app/sql/[0-9]*.sql 2>/dev/null | sort) \
+    /app/sql/fix_rename_content_column.sql; do
     [ -e "$sql_file" ] || continue
     log "  → $(basename "$sql_file")"
-    su postgres -c "psql -d ${PGDB} -f $sql_file" \
+    su postgres -c "${PSQL_CMD} -f $sql_file" \
         > /dev/null 2>&1 || log "    (skipped or already applied)"
 done
 
 # Restore the seed dump if present and DB is empty
 if [ -f /app/sql/seed_chunks.sql.gz ]; then
-    CHUNK_COUNT=$(su postgres -c "psql -d ${PGDB} -tAc 'SELECT count(*) FROM document_chunks'" \
+    CHUNK_COUNT=$(su postgres -c "psql --no-psqlrc -d ${PGDB} -tAc 'SELECT count(*) FROM document_chunks'" \
         2>/dev/null || echo "0")
     if [ "${CHUNK_COUNT}" = "0" ]; then
         log "Restoring seed dump (this may take a few minutes)"
-        gunzip -c /app/sql/seed_chunks.sql.gz | su postgres -c "psql -d ${PGDB}"
-        FINAL=$(su postgres -c "psql -d ${PGDB} -tAc 'SELECT count(*) FROM document_chunks'")
+        gunzip -c /app/sql/seed_chunks.sql.gz | su postgres -c "psql --no-psqlrc -d ${PGDB}"
+        FINAL=$(su postgres -c "psql --no-psqlrc -d ${PGDB} -tAc 'SELECT count(*) FROM document_chunks'")
         log "Seed restored : ${FINAL} chunks"
     else
         log "Database already contains ${CHUNK_COUNT} chunks → skipping restore"
