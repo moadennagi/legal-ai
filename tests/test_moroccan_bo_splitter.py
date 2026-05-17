@@ -1,6 +1,5 @@
 import pytest
-from pathlib import Path
-from unittest.mock import MagicMock, Mock
+from unittest.mock import MagicMock
 from legal_ai.splitters.moroccan_bo_splitter import MoroccanBulettinOfficielSplitter
 from langchain_core.documents import Document as LangchainDocument
 

@@ -1,0 +1,30 @@
+# Minimal runtime deps for the HuggingFace Space demo container.
+# Excludes docling, unstructured, datasets, ragas, pytest (only needed
+# for ingestion / evaluation, not for serving the RAG endpoint).
+
+fastapi[standard]>=0.135.1
+slowapi>=0.1.9
+
+pgvector>=0.4.2
+psycopg2-binary>=2.9.11
+sqlalchemy>=2.0.46
+
+pydantic>=2.12.5
+pydantic-settings>=2.13.0
+
+# Embedding (Ollama) + chat (Together AI via OpenAI-compatible client)
+ollama>=0.6.1
+openai>=2.30.0
+langchain-ollama>=1.1.0
+langchain-openai>=1.1.10
+langchain-text-splitters>=1.1.0
+langchain>=1.2.15
+
+# Cross-encoder reranking
+transformers[torch]>=4.57.6
+
+# Streamlit UI bundled in the same container
+streamlit>=1.39.0
+requests>=2.32.0
+pandas>=2.2.0
+matplotlib>=3.8.0

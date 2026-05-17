@@ -1,6 +1,5 @@
 from legal_ai.interfaces import LLMClientInterface, RAGInterface
 from legal_ai.settings import settings
-from typing import Any
 from legal_ai.models.schemas import ResponseWithContext
 
 TOKEN_HISTORY_LIMIT = 2000

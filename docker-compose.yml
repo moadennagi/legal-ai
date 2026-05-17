@@ -1,0 +1,44 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: legal_ai_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGEME}
+      POSTGRES_DB: ${POSTGRES_DB:-legal_ai}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-legal_ai}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: legal_ai_api
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-CHANGEME}@postgres:5432/${POSTGRES_DB:-legal_ai}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pg_data:
+    driver: local
+
+# Note: Ollama is NOT included in this compose because it requires GPU on most
+# realistic deployments. For local development, run Ollama on the host and set
+# OLLAMA_HOST=http://host.docker.internal:11434 in .env.
+# For online demo, set LLM_PROVIDER=together (or groq) in .env.

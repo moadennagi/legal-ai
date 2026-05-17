@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Type / lint caches
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Data & logs (heavy, runtime-mounted)
+data/
+*.log
+nohup.out
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Private content
+CLAUDE.md
+GEMINI.md
+docs/memoire/
+notebooks/
+.claude/
+.aider*
+.continue/
+
+# Tests (not needed in runtime image)
+tests/
+
+# OS
+.DS_Store
+Thumbs.db

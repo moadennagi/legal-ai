@@ -65,7 +65,36 @@ htmlcov/
 .dmypy.json
 notes.md
 
-data
+# Raw PDFs and runtime data — too heavy to publish
+data/
+
+# Published evaluation artefacts live in ./evals/ (kept at the root for visibility).
+# Exclude only the heavy intermediate seed dataset.
+evals/ragas_seed_dataset.csv
+
 *.log
 
 nohup.out
+.aider*
+
+.continue
+.ipynb_checkpoints
+
+# Private documentation (master's thesis)
+docs/memoire/
+
+# AI collaboration rules (private)
+CLAUDE.md
+GEMINI.md
+.claude/
+.github/instructions/
+
+# Personal documents
+docs/plan_emploi_v2.md
+
+# Notebooks dev (privés)
+notebooks/
+
+# Models cache
+.cache/
+~/.cache/huggingface/

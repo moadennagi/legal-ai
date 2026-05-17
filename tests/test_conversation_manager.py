@@ -1,13 +1,13 @@
 import pytest
-from legal_ai.pipeline.conversation import ConversationManager
+from types import SimpleNamespace
 from unittest.mock import Mock, AsyncMock
-from legal_ai.interfaces import LLMClientInterface, RAGInterface
+from legal_ai.pipeline.conversation import ConversationManager
 
 
-def test_compress_should_keep_last_for_messages():
-    llm_client = Mock(spec=LLMClientInterface)
-    rag = Mock(spec=RAGInterface)
-    llm_client.chat.return_value = "resume"
+def test_compress_should_keep_last_four_messages():
+    llm_client = Mock()
+    llm_client.chat = Mock(return_value="resume")
+    rag = Mock()
     sut = ConversationManager(llm_client=llm_client, rag=rag)
     sut.history = [
         {"role": "user", "content": "foo1"},
@@ -30,11 +30,15 @@ def test_compress_should_keep_last_for_messages():
 @pytest.mark.asyncio
 async def test_ask_should_update_history_with_question_and_answer():
     q = "user question"
-    llm_client = Mock(spec=LLMClientInterface)
+    llm_client = Mock()
+    llm_client.chat = Mock(return_value="resume")
 
-    rag = Mock(spec=RAGInterface)
-    rag.ask = AsyncMock(return_value={"answer": "answer", "sources": [{"instrument": "loi"}]})
-    llm_client.chat.return_value = "resume"
+    rag = Mock()
+    rag_response = SimpleNamespace(
+        answer="answer",
+        sources=[{"instrument": "loi"}],
+    )
+    rag.ask = AsyncMock(return_value=rag_response)
     sut = ConversationManager(llm_client=llm_client, rag=rag)
 
     await sut.ask(query=q, similarity_threshold=0.3)

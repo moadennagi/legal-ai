@@ -1,9 +1,22 @@
 [project]
 name = "legal_ai"
 version = "0.1.0"
-description = "Add your description here"
+description = "Sovereign RAG pipeline for French legal documents, validated on the Moroccan Official Gazette (Bulletin Officiel)."
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.12"
+authors = [
+    { name = "Moad Ennagi", email = "moad.ennagi@gmail.com" }
+]
+keywords = ["rag", "llm", "nlp", "legal-tech", "pgvector", "french-nlp"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "aiohttp>=3.13.3",
     "beautifulsoup4>=4.14.3",
@@ -23,10 +36,16 @@ dependencies = [
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
     "ragas>=0.4.3",
+    "slowapi>=0.1.9",
     "sqlalchemy>=2.0.46",
     "transformers[torch]>=4.57.6",
     "unstructured[pdf]>=0.21.5",
 ]
+
+[project.urls]
+Homepage = "https://github.com/moadennagi/legal-ai"
+Repository = "https://github.com/moadennagi/legal-ai"
+Issues = "https://github.com/moadennagi/legal-ai/issues"
 
 [dependency-groups]
 dev = [

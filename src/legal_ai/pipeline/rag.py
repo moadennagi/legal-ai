@@ -2,7 +2,6 @@ from typing import Any, Coroutine
 import asyncio
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import logging
-import re
 from time import perf_counter
 import torch
 from sqlalchemy import text

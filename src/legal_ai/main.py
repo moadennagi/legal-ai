@@ -74,7 +74,7 @@ if __name__ == "__main__":
         judge_model = "gpt-4o-mini"
         similarity_threshold = 0.5
         ragas_evaluation = RagasEvaluation(llm_as_judge=judge_model)
-        rows = load_eval_dataset("data/evals/ragas_eval_dataset.csv")
+        rows = load_eval_dataset("evals/ragas_eval_dataset.csv")
         result = await ragas_evaluation.evaluate_response(
             rag=rag,
             rows=rows,
@@ -97,8 +97,8 @@ if __name__ == "__main__":
         gen_tag = sanitize_model_name(generation_model)
         config_tag = f"emb={emb_tag}_gen={gen_tag}_hyde={hyde}_rerank={rerank}_contextualize={contextualize_query}_threshold={similarity_threshold}"
 
-        Path("data/evals").mkdir(parents=True, exist_ok=True)
-        df.to_csv(f"data/evals/results_{config_tag}.csv", index=False)
+        Path("evals/results").mkdir(parents=True, exist_ok=True)
+        df.to_csv(f"evals/results/results_{config_tag}.csv", index=False)
 
         summary = {
             "judge_model": judge_model,
@@ -114,7 +114,7 @@ if __name__ == "__main__":
             .mean()
             .to_dict(),
         }
-        with open("data/evals/summary.json", "a") as f:
+        with open("evals/summary.json", "a") as f:
             f.write(json.dumps(summary) + "\n")
 
     if len(sys.argv) > 1 and sys.argv[1] == "export-ragas-csv":
@@ -138,8 +138,8 @@ if __name__ == "__main__":
         # Requires: evaluation/qa_generator.py (write-manually)
 
         openai_client = OpenAILLMClientAdapter(api_key=settings.openai_api_key.get_secret_value())
-        input_csv = "data/evals/ragas_seed_dataset.csv"
-        output_csv = sys.argv[2] if len(sys.argv) > 2 else "data/evals/ragas_eval_dataset.csv"
+        input_csv = "evals/ragas_seed_dataset.csv"
+        output_csv = sys.argv[2] if len(sys.argv) > 2 else "evals/ragas_eval_dataset.csv"
         sample_size = int(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[3] == "--sample" else 60
         generator = QASyntheticGenerator(
             llm_client=openai_client,
@@ -217,8 +217,8 @@ if __name__ == "__main__":
             )
 
         with get_session() as session:
+            # select only documents without chunks
             documents = session.execute(stmt).scalars().all()
-            print(len(documents))
             if not documents:
                 raise ValueError("Document not found")
             await document_embedding.split_and_insert_embeddings(documents=documents)
@@ -275,3 +275,5 @@ if __name__ == "__main__":
             )
             for row in rows:
                 print(row["distance"])
+
+    asyncio.run(embedding())
