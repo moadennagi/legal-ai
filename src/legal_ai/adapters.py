@@ -4,14 +4,19 @@ from legal_ai.interfaces import (
 )
 import ollama
 from openai import AsyncOpenAI
-from docling.document_converter import DocumentConverter, InputFormat, PdfFormatOption
-from docling.datamodel.pipeline_options import PdfPipelineOptions
-from docling_core.types.doc.labels import DocItemLabel
 from legal_ai.settings import settings
+
+try:
+    from docling.document_converter import DocumentConverter, InputFormat, PdfFormatOption
+    from docling.datamodel.pipeline_options import PdfPipelineOptions
+    from docling_core.types.doc.labels import DocItemLabel
+    _DOCLING_AVAILABLE = True
+except ImportError:
+    _DOCLING_AVAILABLE = False
 
 
 class DoclingDocumentConverterAdapter(DocumentConverterInterface):
-    _EXPORT_LABELS = set(DocItemLabel) - {DocItemLabel.DOCUMENT_INDEX}
+    _EXPORT_LABELS = set(DocItemLabel) - {DocItemLabel.DOCUMENT_INDEX} if _DOCLING_AVAILABLE else set()  # type: ignore[name-defined]
 
     def __init__(self):
         options = PdfPipelineOptions()
