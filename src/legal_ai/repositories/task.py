@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from legal_ai.models.document import Task, TaskStatus, TaskType
+from legal_ai.models.document import Task, TaskStatus, TaskType, Source
 from datetime import datetime, timezone
 from sqlalchemy import select
 from legal_ai.models.schemas import TaskSchema
@@ -22,6 +22,11 @@ class TaskRepository:
         stmt = select(Task)
         tasks = session.execute(statement=stmt).scalars().all()
         return tasks
+
+    def get_tasks_by_source_id(self, session: Session, source_id: int) -> list[Task]:
+        stmt = select(Task).join(Source, Source.id == Task.source_id).where(Source.id == source_id)
+        res = session.execute(statement=stmt).scalars().all()
+        return res
 
     def create_downloading_task(self, task_payload: TaskSchema):
         task = Task(

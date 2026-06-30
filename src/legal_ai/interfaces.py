@@ -8,8 +8,9 @@ from legal_ai.models.schemas import ResponseWithContext
 
 
 class CrawlerInterface(ABC):
-    url: str
-    name: str
+    def __init__(self, name: str, url: str):
+        self.name = name
+        self.url = url
 
     @abstractmethod
     async def crawl_and_return_targets(self, task_id: int) -> list[TargetSchema]:

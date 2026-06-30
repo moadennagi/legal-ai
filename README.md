@@ -74,7 +74,7 @@ The thesis manuscript (chapter 3) covers the design rationale and trade-offs in 
 
 ## 🚀 Online demo
 
-👉 **[huggingface.co/spaces/moadennagi/legal-ai](https://huggingface.co/spaces/moadennagi/legal-ai)**
+👉 **[huggingface.co/spaces/moadennagi/legal-ai](https://huggingface.co/spaces/Moadennagi/legal_ai)**
 
 The demo lets you query a curated subset of the corpus with the configuration recommended in our evaluation: `bge-m3` embedding + cross-encoder reranking + `mistral:7b` generation via Together AI.
 

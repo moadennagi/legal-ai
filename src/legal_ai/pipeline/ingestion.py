@@ -35,14 +35,14 @@ class DataIngesion:
         self.document_repository = DocumentRepository()
         self.document_converter = document_converter
 
-    def _collect_targets(self, session: Session) -> list[TargetSchema]:
+    def collect_targets(self, session: Session, source_id: int) -> list[TargetSchema]:
         """Return a list of TargetPayload instances
 
         Returns:
             list[TargetPayload]: TargetPayload instances
         """
         # TODO: decide what tasks I zhould take, do I create a downloading task for every task ?
-        tasks = self.task_repository.get_tasks(session)
+        tasks = self.task_repository.get_tasks_by_source_id(session, source_id)
         task_ids: list[int] = [task.id for task in tasks]
         logger.info(f"Collected {len(task_ids)} tasks from the database")
         # only get the targets for which the documents have no
@@ -83,24 +83,24 @@ class DataIngesion:
             logger.info(f"Inserted {res} targets")
             task.status = TaskStatus.succeeded
 
-    async def download_target_contents(self) -> list[Document | BaseException]:
+    async def download_target_contents(
+        self, targets: list[TargetSchema], data_dir: str = settings.file_path
+    ) -> list[Document | BaseException]:
         """Download documents for every crawling task without a download task"""
         # TODO: create a download task
         coroutines: list[Coroutine[None, None, Document]] = []
         timeout = aiohttp.ClientTimeout()
         sem = asyncio.Semaphore(settings.semaphore)
 
-        with get_session() as session:
-            targets_payload = self._collect_targets(session=session)
-
         async with aiohttp.ClientSession(timeout=timeout) as http_session:
-            for target in targets_payload:
+            for target in targets:
                 coroutine = self.document_processor.download_target_content_and_insert_document(
                     http_session=http_session,
                     target=target,
                     downloader=self.downloader,
                     document_repository=self.document_repository,
                     target_repository=self.target_repository,
+                    data_dir=data_dir,
                 )
                 coroutines.append(run_with_semaphore(sem, coroutine))
             logger.info(f"Processing {len(coroutines)}")

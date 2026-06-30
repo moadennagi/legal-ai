@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     # Storage
     file_path: str = "./data/pdfs"
     semaphore: int = 10
-    database_url: str = "postgresql://postgres:CHANGEME@localhost:5432/legal_ai"
+    database_url: str = "postgresql://postgres:mysecretpassword@localhost:5432/legal_ai"
 
     # Local LLM (Ollama)
     ollama_host: str = "http://127.0.0.1:11434"

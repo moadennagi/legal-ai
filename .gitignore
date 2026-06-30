@@ -98,3 +98,7 @@ notebooks/
 # Models cache
 .cache/
 ~/.cache/huggingface/
+
+presentation/
+docs/
+evals/figures

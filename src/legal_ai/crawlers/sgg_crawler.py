@@ -8,10 +8,11 @@ from legal_ai.utils import parse_ms_json_date
 
 
 class SGGCrawler(CrawlerInterface):
-    name = "sgg"
-    url = "https://www.sgg.gov.ma/BulletinOfficiel.aspx"
-    base_url = "https://www.sgg.gov.ma/"
-    api_url = "https://www.sgg.gov.ma/DesktopModules/MVC/TableListBO/BO/AjaxMethod"
+    def __init__(self, url: str, name: str, base_url: str, api_url: str):
+        self.name = name
+        self.url = url
+        self.base_url = base_url
+        self.api_url = api_url
 
     @property
     def source(self):
